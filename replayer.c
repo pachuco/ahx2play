@@ -15,6 +15,195 @@
 #include <math.h> // ceil()
 #include "replayer.h"
 
+waveforms_t waves;
+bool isInitWaveforms = false;
+
+static const uint16_t lengthTable[6+6+32+1] =
+{
+	0x04,0x08,0x10,0x20,0x40,0x80,
+	0x04,0x08,0x10,0x20,0x40,0x80,
+
+	0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,
+	0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,
+	0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,
+	0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,
+
+	NOIZE_SIZE
+};
+
+static void triangleGenerate(int8_t *dst8, int16_t delta, int32_t offset, int32_t length)
+{
+	int16_t data = 0;
+	for (int32_t i = 0; i < length+1; i++)
+	{
+		*dst8++ = (uint8_t)data;
+		data += delta;
+	}
+	*dst8++ = 127;
+
+	data = 128;
+	for (int32_t i = 0; i < length; i++)
+	{
+		data -= delta;
+		*dst8++ = (uint8_t)data;
+	}
+
+	int8_t *src8 = &dst8[offset];
+	for (int32_t i = 0; i < (length+1)*2; i++)
+	{
+		int8_t sample = *src8++;
+		if (sample == 127)
+			sample = -128;
+		else
+			sample = 0 - sample;
+
+		*dst8++ = sample;
+	}
+}
+
+static void sawToothGenerate(int8_t *dst8, int32_t length)
+{
+	const int8_t delta = (int8_t)(256 / (length-1));
+
+	int8_t data = -128;
+	for (int32_t i = 0; i < length; i++)
+	{
+		*dst8++ = data;
+		data += delta;
+	}
+}
+
+static void squareGenerate(int8_t *dst8)
+{
+	uint16_t *dst16 = (uint16_t *)dst8;
+	for (int32_t i = 1; i <= 32; i++)
+	{
+		for (int32_t j = 0; j < 64-i; j++)
+			*dst16++ = 0x8080;
+
+		for (int32_t j = 0; j < i; j++)
+			*dst16++ = 0x7F7F;
+	}
+}
+
+static void whiteNoiseGenerate(int8_t *dst8, int32_t length)
+{
+	uint32_t seed = 0x41595321; // 8bb: "AYS!"
+	for (int32_t i = 0; i < length; i++)
+	{
+		if (!(seed & 256))
+			*dst8++ = (uint8_t)seed;
+		else if (seed & 0x8000)
+			*dst8++ = -128;
+		else
+			*dst8++ = 127;
+
+		ROR32(seed, 5);
+		seed ^= 0b10011010;
+		uint16_t tmp16 = (uint16_t)seed;
+		ROL32(seed, 2);
+		tmp16 += (uint16_t)seed;
+		seed ^= tmp16;
+		ROR32(seed, 3);
+	}
+}
+
+static int32_t fp16Clip(int32_t x)
+{
+	int16_t tmp = x >> 16;
+	if (tmp > 127)
+	{
+		tmp = 127;
+		return tmp << 16;
+	}
+
+	if (tmp < -128)
+	{
+		tmp = -128;
+		return tmp << 16;
+	}
+
+	return x;
+}
+
+static void setUpFilterWaveForms(int8_t *dst8Hi, int8_t *dst8Lo, int8_t *src8)
+{
+	int32_t d5 = ((((8<<16)*125)/100)/100)>>8;
+	for (int32_t i = 0; i < 31; i++)
+	{
+		for (int32_t j = 0; j < 6+6+32+1; j++)
+		{
+			const int32_t waveLength = lengthTable[j];
+			
+			int32_t d1;
+			int32_t d2 = 0;
+			int32_t d3 = 0;
+            
+			// 4 passes
+            for (int32_t k = 1; k <= 4; k++)
+            {
+                /* truncate lower 8 bits on 4th pass
+                ** to simulate LUT of AHX; bit-perfect output
+                */
+                if (k == 4)
+                {
+                    d2 &= ~0xFF;
+                    d3 &= ~0xFF;
+                }
+                
+                for (int32_t l = 0; l < waveLength; l++)
+                {
+                    const int32_t d0 = (int16_t)src8[l] << 16;
+
+                    d1 = fp16Clip(d0 - d2 - d3);
+                    d2 = fp16Clip(d2 + ((d1 >> 8) * d5));
+                    d3 = fp16Clip(d3 + ((d2 >> 8) * d5));
+                    
+                    if (k == 4) 
+                    {
+                        *dst8Hi++ = (uint8_t)(d1 >> 16);
+                        *dst8Lo++ = (uint8_t)(d3 >> 16);
+                    }
+                }
+            }
+
+			src8 += waveLength; // 8bb: go to next waveform
+		}
+
+		d5 += ((((3<<16)*125)/100)/100)>>8;
+	}
+}
+
+void ahxInitWaves(void) // 8bb: this generates bit-accurate AHX 2.3d-sp3 waveforms
+{
+    if (isInitWaveforms) return;
+
+	int8_t *dst8 =  waves.triangle04;
+	for (int32_t i = 0; i < 6; i++)
+	{
+		uint16_t fullLength = 4 << i;
+		uint16_t length = fullLength >> 2;
+		uint16_t delta = 128 / length;
+		int32_t offset = 0 - (fullLength >> 1);
+
+		triangleGenerate(dst8, delta, offset, length-1);
+		dst8 += fullLength;
+	}
+
+	sawToothGenerate(waves.sawtooth04, 0x04);
+	sawToothGenerate(waves.sawtooth08, 0x08);
+	sawToothGenerate(waves.sawtooth10, 0x10);
+	sawToothGenerate(waves.sawtooth20, 0x20);
+	sawToothGenerate(waves.sawtooth40, 0x40);
+	sawToothGenerate(waves.sawtooth80, 0x80);
+	squareGenerate(waves.squares);
+	whiteNoiseGenerate(waves.whiteNoiseBig, NOIZE_SIZE);
+
+	setUpFilterWaveForms(waves.highPasses, waves.lowPasses, waves.triangle04);
+    isInitWaveforms = true;
+}
+//---------------------------------------------------------------------------------------------------------------
+
 static const uint8_t waveOffsets[6] =
 {
 	0x00,0x04,0x04+0x08,0x04+0x08+0x10,0x04+0x08+0x10+0x20,0x04+0x08+0x10+0x20+0x40
@@ -67,8 +256,6 @@ static const int16_t vibTable[64] =
 // 8bb: globalized
 volatile bool isRecordingToWAV;
 song_t song;
-waveforms_t waves;
-bool isInitWaveforms = false;
 uint8_t ahxErrCode;
 // ------------
 
