@@ -146,56 +146,34 @@ static void setUpFilterWaveForms(void)
 			int32_t d1;
 			int32_t d2 = 0;
 			int32_t d3 = 0;
+            
+			// 4 passes
+            for (int32_t k = 1; k <= 4; k++)
+            {
+                /* truncate lower 8 bits on 4th pass
+                ** to simulate LUT of AHX; bit-perfect output
+                */
+                if (k == 4)
+                {
+                    d2 &= ~0xFF;
+                    d3 &= ~0xFF;
+                }
+                
+                for (int32_t l = 0; l < waveLength; l++)
+                {
+                    const int32_t d0 = (int16_t)src8[l] << 16;
 
-			// 8bb: 1st pass
-			for (int32_t k = 0; k < waveLength; k++)
-			{
-				const int32_t d0 = (int16_t)src8[k] << 16;
-
-				d1 = fp16Clip(d0 - d2 - d3);
-				d2 = fp16Clip(d2 + ((d1 >> 8) * d5));
-				d3 = fp16Clip(d3 + ((d2 >> 8) * d5));
-			}
-
-			// 8bb: 2nd pass
-			for (int32_t k = 0; k < waveLength; k++)
-			{
-				const int32_t d0 = (int16_t)src8[k] << 16;
-
-				d1 = fp16Clip(d0 - d2 - d3);
-				d2 = fp16Clip(d2 + ((d1 >> 8) * d5));
-				d3 = fp16Clip(d3 + ((d2 >> 8) * d5));
-			}
-
-			// 8bb: 3rd pass
-			for (int32_t k = 0; k < waveLength; k++)
-			{
-				const int32_t d0 = (int16_t)src8[k] << 16;
-
-				d1 = fp16Clip(d0 - d2 - d3);
-				d2 = fp16Clip(d2 + ((d1 >> 8) * d5));
-				d3 = fp16Clip(d3 + ((d2 >> 8) * d5));
-			}
-			
-			/* 8bb:
-			** Truncate lower 8 bits for this to be bit-accurate
-			** to how AHX does it (it uses a LUT).
-			*/
-			d2 &= ~0xFF;
-			d3 &= ~0xFF;
-
-			// 8bb: 4th pass (write)
-			for (int32_t k = 0; k < waveLength; k++)
-			{
-				const int32_t d0 = (int16_t)src8[k] << 16;
-
-				d1 = fp16Clip(d0 - d2 - d3);
-				d2 = fp16Clip(d2 + ((d1 >> 8) * d5));
-				d3 = fp16Clip(d3 + ((d2 >> 8) * d5));
-
-				*dst8Hi++ = (uint8_t)(d1 >> 16);
-				*dst8Lo++ = (uint8_t)(d3 >> 16);
-			}
+                    d1 = fp16Clip(d0 - d2 - d3);
+                    d2 = fp16Clip(d2 + ((d1 >> 8) * d5));
+                    d3 = fp16Clip(d3 + ((d2 >> 8) * d5));
+                    
+                    if (k == 4) 
+                    {
+                        *dst8Hi++ = (uint8_t)(d1 >> 16);
+                        *dst8Lo++ = (uint8_t)(d3 >> 16);
+                    }
+                }
+            }
 
 			src8 += waveLength; // 8bb: go to next waveform
 		}
