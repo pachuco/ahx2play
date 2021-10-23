@@ -34,10 +34,7 @@ enum
 #define ROL32(d, x) (d = (d << (x)) | (d >> (32-(x))))
 #define ROR32(d, x) (d = (d >> (x)) | (d << (32-(x))))
 
-#ifdef _MSC_VER
-#pragma pack(push)
-#pragma pack(1)
-#endif
+#pragma pack(push,1)
 typedef struct
 {
 	uint8_t Volume;
@@ -68,14 +65,8 @@ typedef struct
 	uint8_t perfLength;
 
 	uint8_t perfList[4*256]; // 8bb: room for max perfLength entries!
-}
-#ifdef __GNUC__
-__attribute__((packed))
-#endif
-instrument_t;
-#ifdef _MSC_VER
+} instrument_t;
 #pragma pack(pop)
-#endif
 
 typedef struct // 8bb: channel structure
 {
@@ -213,10 +204,7 @@ typedef struct // 8bb: song strucure
 	instrument_t EmptyInstrument; // 8bb: added this ( initialized with def. values in ahxPlay() )
 } song_t;
 
-#ifdef _MSC_VER
-#pragma pack(push)
-#pragma pack(1)
-#endif
+#pragma pack(push,1)
 typedef struct
 {
 	int8_t lowPasses[WAV_FILTER_LENGTH * 31];
@@ -232,14 +220,8 @@ typedef struct
 
 	// 8bb: Added this (also put here for dword-alignment). The size is just big enough, don't change it!
 	int8_t EmptyFilterSection[0x80 * 32];
-}
-#ifdef __GNUC__
-__attribute__ ((packed))
-#endif
-waveforms_t;
-#ifdef _MSC_VER
+} waveforms_t;
 #pragma pack(pop)
-#endif
 
 extern volatile bool isRecordingToWAV;
 extern song_t song;
