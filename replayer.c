@@ -131,6 +131,7 @@ static void setUpFilterWaveForms(int8_t *dst8Hi, int8_t *dst8Lo, int8_t *src8)
 	int32_t d5 = ((((8<<16)*125)/100)/100)>>8;
 	for (int32_t i = 0; i < 31; i++)
 	{
+        int32_t wlAdd = 0;
 		for (int32_t j = 0; j < 6+6+32+1; j++)
 		{
 			const int32_t waveLength = lengthTable[j];
@@ -153,7 +154,7 @@ static void setUpFilterWaveForms(int8_t *dst8Hi, int8_t *dst8Lo, int8_t *src8)
                 
                 for (int32_t l = 0; l < waveLength; l++)
                 {
-                    const int32_t d0 = (int16_t)src8[l] << 16;
+                    const int32_t d0 = (int16_t)src8[wlAdd + l] << 16;
 
                     d1 = fp16Clip(d0 - d2 - d3);
                     d2 = fp16Clip(d2 + ((d1 >> 8) * d5));
@@ -166,8 +167,8 @@ static void setUpFilterWaveForms(int8_t *dst8Hi, int8_t *dst8Lo, int8_t *src8)
                     }
                 }
             }
-
-			src8 += waveLength; // 8bb: go to next waveform
+            
+			wlAdd += waveLength; // 8bb: go to next waveform
 		}
 
 		d5 += ((((3<<16)*125)/100)/100)>>8;
