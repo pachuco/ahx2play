@@ -197,22 +197,7 @@ static bool ahxInitModule(const uint8_t *p)
 	song.WaveformTab[0] = waves.triangle04;
 	song.WaveformTab[1] = waves.sawtooth04;
 	song.WaveformTab[3] = waves.whiteNoiseBig;
-
-	// 8bb: set default values for EmptyInstrument (used for non-loaded instruments in replayer)
-	instrument_t *ins = &song.EmptyInstrument;
-	memset(ins, 0, sizeof (instrument_t));
-	ins->aFrames = 1;
-	ins->dFrames = 1;
-	ins->sFrames = 1;
-	ins->rFrames = 1;
-	ins->perfSpeed = 1;
-	ins->squareLowerLimit = 0x20;
-	ins->squareUpperLimit = 0x3F;
-	ins->squareSpeed = 1;
-	ins->filterLowerLimit = 1;
-	ins->filterUpperLimit = 0x1F;
-	ins->filterSpeedWavelength = 4<<3; // fs 3 wl 04 !!
-
+    
 	song.songLoaded = true;
 	return true;
 }

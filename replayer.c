@@ -254,10 +254,30 @@ static const int16_t vibTable[64] =
 	-180,-161,-141,-120, -97, -74, -49, -24
 };
 
+// 8bb: set default values for EmptyInstrument (used for non-loaded instruments in replayer)
+static instrument_t EmptyInstrument =
+{
+	.aFrames = 1,
+	.dFrames = 1,
+	.sFrames = 1,
+	.rFrames = 1,
+	.perfSpeed = 1,
+	.squareLowerLimit = 0x20,
+	.squareUpperLimit = 0x3F,
+	.squareSpeed = 1,
+	.filterLowerLimit = 1,
+	.filterUpperLimit = 0x1F,
+	.filterSpeedWavelength = 4<<3, // fs 3 wl 04 !!
+};
+
+// 8bb: The size is just big enough, don't change it!
+static int8_t EmptyFilterSection[0x80 * 32] = {0};
+
 // 8bb: globalized
 volatile bool isRecordingToWAV;
 song_t song;
 uint8_t ahxErrCode;
+
 // ------------
 
 // 8bb: loader.c
@@ -470,7 +490,7 @@ static void ProcessStep(plyVoiceTemp_t *ch)
 		// init adsr-envelope
 		instrument_t *ins = song.Instruments[instr-1];
 		if (ins == NULL) // 8bb: added this (this is technically what happens in AHX on illegal instruments)
-			ins = &song.EmptyInstrument;
+			ins = &EmptyInstrument;
 
 		ch->adsr = 0; // adsr starting at vol. 0!
 
@@ -767,7 +787,7 @@ static void pListCommandParse(plyVoiceTemp_t *ch, uint8_t cmd, uint8_t param)
 	{
 		instrument_t *ins = ch->Instrument;
 		if (ins == NULL) // 8bb: safety bug-fix...
-			ins = &song.EmptyInstrument;
+			ins = &EmptyInstrument;
 
 		// 8bb: 4 bytes before perfList (apparently this is what AHX does...)
 		uint8_t *perfList = ins->perfList - 4;
@@ -858,7 +878,7 @@ static void ProcessFrame(plyVoiceTemp_t *ch)
 			{
 				instrument_t *ins = ch->Instrument;
 				if (ins == NULL) // 8bb: safety bug-fix...
-					ins = &song.EmptyInstrument;
+					ins = &EmptyInstrument;
 
 				ch->rFrames = ch->HardCutReleaseF;
 				ch->rDelta = 0 - ((ch->adsr - (ins->rVolume << 8)) / ch->HardCutReleaseF);
@@ -885,7 +905,7 @@ static void ProcessFrame(plyVoiceTemp_t *ch)
 
 	instrument_t *ins = ch->Instrument;
 	if (ins == NULL) // 8bb: safety bug-fix...
-		ins = &song.EmptyInstrument;
+		ins = &EmptyInstrument;
 
 	if (ch->aFrames != 0)
 	{
@@ -1140,7 +1160,7 @@ static void ProcessFrame(plyVoiceTemp_t *ch)
 
 		// 8bb: safety bug-fix... If filter is out of range, use empty buffer (yes, this can easily happen)
 		if (ch->filterPos == 0 || ch->filterPos > 63)
-			src8 = waves.EmptyFilterSection;
+			src8 = EmptyFilterSection;
 		else
 			src8 = (const int8_t *)&waves.squares[((int32_t)ch->filterPos - 32) * WAV_FILTER_LENGTH]; // squares@desired.filter
 
@@ -1187,7 +1207,7 @@ static void ProcessFrame(plyVoiceTemp_t *ch)
 		{
 			// 8bb: safety bug-fix... If filter is out of range, use empty buffer (yes, this can easily happen)
 			if (ch->filterPos == 0 || ch->filterPos > 63)
-				audioSource = waves.EmptyFilterSection;
+				audioSource = EmptyFilterSection;
 			else
 				audioSource += ((int32_t)ch->filterPos - 32) * WAV_FILTER_LENGTH;
 		}
@@ -1473,7 +1493,6 @@ bool ahxPlay(int32_t subSong)
 	// 8bb: Added this. Clear custom data (these are put in the waves struct for dword-alignment)
 	memset(waves.SquareTempBuffer,   0, sizeof (waves.SquareTempBuffer));
 	memset(waves.currentVoice,       0, sizeof (waves.currentVoice));
-	memset(waves.EmptyFilterSection, 0, sizeof (waves.EmptyFilterSection));
 
 	plyVoiceTemp_t *ch = song.pvt;
 	for (int32_t i = 0; i < AMIGA_VOICES; i++, ch++)
