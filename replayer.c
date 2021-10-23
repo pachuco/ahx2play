@@ -175,6 +175,18 @@ static void setUpFilterWaveForms(int8_t *dst8Hi, int8_t *dst8Lo, int8_t *src8)
 	}
 }
 
+uint32_t crc32b(uint8_t *data, int length) {
+   uint32_t crc = 0xFFFFFFFF;
+   
+   for (int i = 0; i < length; i++) {
+      crc ^= data[i];
+      
+      for (int j = 0; j < 8; j++) { crc = (crc >> 1) ^ (0xEDB88320 * (crc & 1)); }
+   }
+   return ~crc;
+}
+
+    #include <assert.h>
 void ahxInitWaves(void) // 8bb: this generates bit-accurate AHX 2.3d-sp3 waveforms
 {
     if (isInitWaveforms) return;
@@ -202,6 +214,8 @@ void ahxInitWaves(void) // 8bb: this generates bit-accurate AHX 2.3d-sp3 wavefor
 
 	setUpFilterWaveForms(waves.highPasses, waves.lowPasses, waves.triangle04);
     isInitWaveforms = true;
+    
+    assert(crc32b(&waves, 410760) == 0x40EEB1B9);
 }
 //---------------------------------------------------------------------------------------------------------------
 
