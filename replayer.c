@@ -276,6 +276,7 @@ static int8_t EmptyFilterSection[0x80 * 32] = {0};
 // 8bb: globalized
 volatile bool isRecordingToWAV;
 song_t song;
+replayer_t ahx;
 uint8_t ahxErrCode;
 
 // ------------
@@ -293,7 +294,7 @@ static void SetUpAudioChannels(void) // 8bb: only call this while mixer is locke
 	ch = song.pvt;
 	for (int32_t i = 0; i < AMIGA_VOICES; i++, ch++)
 	{
-		ch->audioPointer = waves.currentVoice[i];
+		ch->audioPointer = ahx.currentVoice[i];
 
 		paulaSetPeriod(i, 0x88);
 		paulaSetData(i, ch->audioPointer);
@@ -1491,12 +1492,12 @@ bool ahxPlay(int32_t subSong)
 	amigaSetCIAPeriod(song.SongCIAPeriod);
 
 	// 8bb: Added this. Clear custom data (these are put in the waves struct for dword-alignment)
-	memset(waves.SquareTempBuffer,   0, sizeof (waves.SquareTempBuffer));
-	memset(waves.currentVoice,       0, sizeof (waves.currentVoice));
+	memset(ahx.SquareTempBuffer,   0, sizeof (ahx.SquareTempBuffer));
+	memset(ahx.currentVoice,       0, sizeof (ahx.currentVoice));
 
 	plyVoiceTemp_t *ch = song.pvt;
 	for (int32_t i = 0; i < AMIGA_VOICES; i++, ch++)
-		ch->SquareTempBuffer = waves.SquareTempBuffer[i];
+		ch->SquareTempBuffer = ahx.SquareTempBuffer[i];
 
 	song.PosJump = false;
 	song.Tempo = 6;

@@ -200,8 +200,6 @@ typedef struct // 8bb: song strucure
 	instrument_t *Instruments[63];
 
 	int8_t *WaveformTab[4]; // has to be inited!!!
-
-	instrument_t EmptyInstrument; // 8bb: added this ( initialized with def. values in ahxPlay() )
 } song_t;
 
 #pragma pack(push,1)
@@ -213,14 +211,17 @@ typedef struct
 	int8_t squares[0x80 * 32];
 	int8_t whiteNoiseBig[NOIZE_SIZE];
 	int8_t highPasses[WAV_FILTER_LENGTH * 31];
-
-	// 8bb: moved these here, so that they get dword-aligned
-	int8_t SquareTempBuffer[AMIGA_VOICES][0x80];
-	int8_t currentVoice[AMIGA_VOICES][0x280];
 } waveforms_t;
 #pragma pack(pop)
 
+typedef struct
+{
+	int8_t SquareTempBuffer[AMIGA_VOICES][0x80];
+	int8_t currentVoice[AMIGA_VOICES][0x280];
+} replayer_t;
+
 extern volatile bool isRecordingToWAV;
+extern replayer_t ahx;
 extern song_t song;
 extern waveforms_t waves;
 extern bool isInitWaveforms;
