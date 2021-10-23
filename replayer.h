@@ -225,7 +225,8 @@ typedef struct
 
 extern volatile bool isRecordingToWAV;
 extern song_t song;
-extern waveforms_t *waves; // 8bb: dword-aligned from malloc()
+extern waveforms_t waves;
+extern bool isInitWaveforms;
 
 // loader.c
 bool ahxLoadFromRAM(const uint8_t *data);

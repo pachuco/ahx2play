@@ -130,15 +130,11 @@ static int32_t fp16Clip(int32_t x)
 	return x;
 }
 
-static void setUpFilterWaveForms(void)
+static void setUpFilterWaveForms(int8_t *dst8Hi, int8_t *dst8Lo, int8_t *src8)
 {
-	int8_t *dst8Hi = waves->highPasses;
-	int8_t *dst8Lo = waves->lowPasses;
-	
 	int32_t d5 = ((((8<<16)*125)/100)/100)>>8;
 	for (int32_t i = 0; i < 31; i++)
 	{
-		int8_t *src8 =  waves->triangle04; // 8bb: start of waveforms
 		for (int32_t j = 0; j < 6+6+32+1; j++)
 		{
 			const int32_t waveLength = lengthTable[j];
@@ -182,27 +178,11 @@ static void setUpFilterWaveForms(void)
 	}
 }
 
-void ahxFreeWaves(void)
+void ahxInitWaves(void) // 8bb: this generates bit-accurate AHX 2.3d-sp3 waveforms
 {
-	if (waves != NULL)
-	{
-		free(waves);
-		waves = NULL;
-	}
-}
+    if (isInitWaveforms) return;
 
-bool ahxInitWaves(void) // 8bb: this generates bit-accurate AHX 2.3d-sp3 waveforms
-{
-	ahxFreeWaves();
-
-	// 8bb: "waves" needs dword-alignment, and that's guaranteed from malloc()
-	waves = (waveforms_t *)malloc(sizeof (waveforms_t));
-	if (waves == NULL)
-		return false;
-
-	// 8bb: generate waveforms
-
-	int8_t *dst8 =  waves->triangle04;
+	int8_t *dst8 =  waves.triangle04;
 	for (int32_t i = 0; i < 6; i++)
 	{
 		uint16_t fullLength = 4 << i;
@@ -214,17 +194,17 @@ bool ahxInitWaves(void) // 8bb: this generates bit-accurate AHX 2.3d-sp3 wavefor
 		dst8 += fullLength;
 	}
 
-	sawToothGenerate(waves->sawtooth04, 0x04);
-	sawToothGenerate(waves->sawtooth08, 0x08);
-	sawToothGenerate(waves->sawtooth10, 0x10);
-	sawToothGenerate(waves->sawtooth20, 0x20);
-	sawToothGenerate(waves->sawtooth40, 0x40);
-	sawToothGenerate(waves->sawtooth80, 0x80);
-	squareGenerate(waves->squares);
-	whiteNoiseGenerate(waves->whiteNoiseBig, NOIZE_SIZE);
+	sawToothGenerate(waves.sawtooth04, 0x04);
+	sawToothGenerate(waves.sawtooth08, 0x08);
+	sawToothGenerate(waves.sawtooth10, 0x10);
+	sawToothGenerate(waves.sawtooth20, 0x20);
+	sawToothGenerate(waves.sawtooth40, 0x40);
+	sawToothGenerate(waves.sawtooth80, 0x80);
+	squareGenerate(waves.squares);
+	whiteNoiseGenerate(waves.whiteNoiseBig, NOIZE_SIZE);
 
-	setUpFilterWaveForms();
-	return true;
+	setUpFilterWaveForms(waves.highPasses, waves.lowPasses, waves.triangle04);
+    isInitWaveforms = true;
 }
 
 static bool ahxInitModule(const uint8_t *p)
@@ -235,7 +215,7 @@ static bool ahxInitModule(const uint8_t *p)
 	song.songLoaded = false;
 
 	// 8bb: added this check
-	if (waves == NULL)
+	if (!isInitWaveforms)
 	{
 		ahxErrCode = ERR_NO_WAVES;
 		return false;
@@ -399,9 +379,9 @@ static bool ahxInitModule(const uint8_t *p)
 	song.SongCIAPeriod = tabler[(flags >> 13) & 3];
 
 	// 8bb: set up waveform pointers (Note: song.WaveformTab[2] is setup in the replayer!)
-	song.WaveformTab[0] = waves->triangle04;
-	song.WaveformTab[1] = waves->sawtooth04;
-	song.WaveformTab[3] = waves->whiteNoiseBig;
+	song.WaveformTab[0] = waves.triangle04;
+	song.WaveformTab[1] = waves.sawtooth04;
+	song.WaveformTab[3] = waves.whiteNoiseBig;
 
 	// 8bb: set default values for EmptyInstrument (used for non-loaded instruments in replayer)
 	instrument_t *ins = &song.EmptyInstrument;

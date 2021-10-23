@@ -67,13 +67,13 @@ static const int16_t vibTable[64] =
 // 8bb: globalized
 volatile bool isRecordingToWAV;
 song_t song;
-waveforms_t *waves; // 8bb: dword-aligned from malloc()
+waveforms_t waves;
+bool isInitWaveforms = false;
 uint8_t ahxErrCode;
 // ------------
 
 // 8bb: loader.c
-bool ahxInitWaves(void);
-void ahxFreeWaves(void);
+void ahxInitWaves(void);
 // -----------
 
 static void SetUpAudioChannels(void) // 8bb: only call this while mixer is locked!
@@ -85,7 +85,7 @@ static void SetUpAudioChannels(void) // 8bb: only call this while mixer is locke
 	ch = song.pvt;
 	for (int32_t i = 0; i < AMIGA_VOICES; i++, ch++)
 	{
-		ch->audioPointer = waves->currentVoice[i];
+		ch->audioPointer = waves.currentVoice[i];
 
 		paulaSetPeriod(i, 0x88);
 		paulaSetData(i, ch->audioPointer);
@@ -952,9 +952,9 @@ static void ProcessFrame(plyVoiceTemp_t *ch)
 
 		// 8bb: safety bug-fix... If filter is out of range, use empty buffer (yes, this can easily happen)
 		if (ch->filterPos == 0 || ch->filterPos > 63)
-			src8 = waves->EmptyFilterSection;
+			src8 = waves.EmptyFilterSection;
 		else
-			src8 = (const int8_t *)&waves->squares[((int32_t)ch->filterPos - 32) * WAV_FILTER_LENGTH]; // squares@desired.filter
+			src8 = (const int8_t *)&waves.squares[((int32_t)ch->filterPos - 32) * WAV_FILTER_LENGTH]; // squares@desired.filter
 
 		uint8_t whichSquare = ch->squarePos << (5 - ch->Wavelength);
 		if ((int8_t)whichSquare > 0x20)
@@ -999,7 +999,7 @@ static void ProcessFrame(plyVoiceTemp_t *ch)
 		{
 			// 8bb: safety bug-fix... If filter is out of range, use empty buffer (yes, this can easily happen)
 			if (ch->filterPos == 0 || ch->filterPos > 63)
-				audioSource = waves->EmptyFilterSection;
+				audioSource = waves.EmptyFilterSection;
 			else
 				audioSource += ((int32_t)ch->filterPos - 32) * WAV_FILTER_LENGTH;
 		}
@@ -1211,17 +1211,11 @@ void ahxPrevPattern(void)
 bool ahxInit(int32_t audioFreq, int32_t audioBufferSize, int32_t masterVol, int32_t stereoSeparation)
 {
 	ahxErrCode = ERR_SUCCESS;
-
-	if (!ahxInitWaves())
-	{
-		ahxErrCode = ERR_OUT_OF_MEMORY;
-		return false;
-	}
-
+    
+    ahxInitWaves();
 	if (!paulaInit(audioFreq))
 	{
 		paulaClose();
-		ahxFreeWaves();
 		ahxErrCode = ERR_OUT_OF_MEMORY;
 		return false;
 	}
@@ -1233,7 +1227,6 @@ bool ahxInit(int32_t audioFreq, int32_t audioBufferSize, int32_t masterVol, int3
 	{
 		closeMixer();
 		paulaClose();
-		ahxFreeWaves();
 		ahxErrCode = ERR_AUDIO_DEVICE;
 		return false;
 	}
@@ -1245,7 +1238,6 @@ void ahxClose(void)
 {
 	closeMixer();
 	paulaClose();
-	ahxFreeWaves();
 }
 
 bool ahxPlay(int32_t subSong)
@@ -1258,7 +1250,7 @@ bool ahxPlay(int32_t subSong)
 		return false;
 	}
 
-	if (waves == NULL)
+	if (!isInitWaveforms)
 	{
 		ahxErrCode = ERR_NO_WAVES;
 		return false; // 8bb: waves not set up!
@@ -1291,13 +1283,13 @@ bool ahxPlay(int32_t subSong)
 	amigaSetCIAPeriod(song.SongCIAPeriod);
 
 	// 8bb: Added this. Clear custom data (these are put in the waves struct for dword-alignment)
-	memset(waves->SquareTempBuffer,   0, sizeof (waves->SquareTempBuffer));
-	memset(waves->currentVoice,       0, sizeof (waves->currentVoice));
-	memset(waves->EmptyFilterSection, 0, sizeof (waves->EmptyFilterSection));
+	memset(waves.SquareTempBuffer,   0, sizeof (waves.SquareTempBuffer));
+	memset(waves.currentVoice,       0, sizeof (waves.currentVoice));
+	memset(waves.EmptyFilterSection, 0, sizeof (waves.EmptyFilterSection));
 
 	plyVoiceTemp_t *ch = song.pvt;
 	for (int32_t i = 0; i < AMIGA_VOICES; i++, ch++)
-		ch->SquareTempBuffer = waves->SquareTempBuffer[i];
+		ch->SquareTempBuffer = waves.SquareTempBuffer[i];
 
 	song.PosJump = false;
 	song.Tempo = 6;
@@ -1401,15 +1393,9 @@ bool ahxRecordWAVFromRAM(const uint8_t *data, const char *fileOut, int32_t subSo
 {
 	ahxErrCode = ERR_SUCCESS;
 
-	if (!ahxInitWaves())
-	{
-		ahxErrCode = ERR_OUT_OF_MEMORY;
-		return false;
-	}
-
+	ahxInitWaves();
 	if (!paulaInit(audioFreq))
 	{
-		ahxFreeWaves();
 		ahxErrCode = ERR_OUT_OF_MEMORY;
 		return false;
 	}
@@ -1420,7 +1406,6 @@ bool ahxRecordWAVFromRAM(const uint8_t *data, const char *fileOut, int32_t subSo
 	if (!ahxLoadFromRAM(data)) // 8bb: modifies error code
 	{
 		paulaClose();
-		ahxFreeWaves();
 		return false;
 	}
 
@@ -1431,7 +1416,6 @@ bool ahxRecordWAVFromRAM(const uint8_t *data, const char *fileOut, int32_t subSo
 	{
 		ahxFree();
 		paulaClose();
-		ahxFreeWaves();
 		ahxErrCode = ERR_OUT_OF_MEMORY;
 		return false;
 	}
@@ -1441,7 +1425,6 @@ bool ahxRecordWAVFromRAM(const uint8_t *data, const char *fileOut, int32_t subSo
 	{
 		ahxFree();
 		paulaClose();
-		ahxFreeWaves();
 		free(outputBuffer);
 		ahxErrCode = ERR_FILE_IO;
 		return false;
@@ -1456,7 +1439,6 @@ bool ahxRecordWAVFromRAM(const uint8_t *data, const char *fileOut, int32_t subSo
 		fclose(f);
 		ahxFree();
 		paulaClose();
-		ahxFreeWaves();
 		free(outputBuffer);
 		return false;
 	}
@@ -1477,7 +1459,6 @@ bool ahxRecordWAVFromRAM(const uint8_t *data, const char *fileOut, int32_t subSo
 	fclose(f);
 	ahxFree();
 	paulaClose();
-	ahxFreeWaves();
 	free(outputBuffer);
 
 	return true;
@@ -1488,16 +1469,10 @@ bool ahxRecordWAV(const char *fileIn, const char *fileOut, int32_t subSong,
 	int32_t songLoopTimes, int32_t audioFreq, int32_t masterVol, int32_t stereoSeparation)
 {
 	ahxErrCode = ERR_SUCCESS;
-
-	if (!ahxInitWaves())
-	{
-		ahxErrCode = ERR_OUT_OF_MEMORY;
-		return false;
-	}
-
+    
+	ahxInitWaves();
 	if (!paulaInit(audioFreq))
 	{
-		ahxFreeWaves();
 		ahxErrCode = ERR_OUT_OF_MEMORY;
 		return false;
 	}
@@ -1508,7 +1483,6 @@ bool ahxRecordWAV(const char *fileIn, const char *fileOut, int32_t subSong,
 	if (!ahxLoad(fileIn)) // 8bb: modifies error code
 	{
 		paulaClose();
-		ahxFreeWaves();
 		return false;
 	}
 
@@ -1519,7 +1493,6 @@ bool ahxRecordWAV(const char *fileIn, const char *fileOut, int32_t subSong,
 	{
 		ahxFree();
 		paulaClose();
-		ahxFreeWaves();
 		ahxErrCode = ERR_OUT_OF_MEMORY;
 		return false;
 	}
@@ -1529,7 +1502,6 @@ bool ahxRecordWAV(const char *fileIn, const char *fileOut, int32_t subSong,
 	{
 		ahxFree();
 		paulaClose();
-		ahxFreeWaves();
 		free(outputBuffer);
 		ahxErrCode = ERR_FILE_IO;
 		return false;
@@ -1544,7 +1516,6 @@ bool ahxRecordWAV(const char *fileIn, const char *fileOut, int32_t subSong,
 		fclose(f);
 		ahxFree();
 		paulaClose();
-		ahxFreeWaves();
 		free(outputBuffer);
 		return false;
 	}
@@ -1565,7 +1536,6 @@ bool ahxRecordWAV(const char *fileIn, const char *fileOut, int32_t subSong,
 	fclose(f);
 	ahxFree();
 	paulaClose();
-	ahxFreeWaves();
 	free(outputBuffer);
 
 	return true;
