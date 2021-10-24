@@ -163,10 +163,6 @@ typedef struct // 8bb: channel structure
 
 typedef struct // 8bb: song strucure
 {
-	bool songLoaded; // 8bb: added this
-	int32_t loopCounter, loopTimes; // 8bb: added this
-
-	volatile bool intPlaying;
 	char Name[255+1];
 	uint8_t Revision;
 
@@ -198,8 +194,6 @@ typedef struct // 8bb: song strucure
 	uint8_t *PosTable;
 	uint8_t *TrackTable;
 	instrument_t *Instruments[63];
-
-	int8_t *WaveformTab[4]; // has to be inited!!!
 } song_t;
 
 #pragma pack(push,1)
@@ -218,6 +212,13 @@ typedef struct
 {
 	int8_t SquareTempBuffer[AMIGA_VOICES][0x80];
 	int8_t currentVoice[AMIGA_VOICES][0x280];
+
+	bool songLoaded; // 8bb: added this
+	int32_t loopCounter, loopTimes; // 8bb: added this
+
+	volatile bool intPlaying;
+
+	int8_t *WaveformTab[4]; // has to be inited!!!
 } replayer_t;
 
 extern volatile bool isRecordingToWAV;

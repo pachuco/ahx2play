@@ -27,7 +27,7 @@ static bool ahxInitModule(const uint8_t *p)
 	bool trkNullEmpty;
 	uint16_t flags;
 
-	song.songLoaded = false;
+	ahx.songLoaded = false;
 
 	// 8bb: added this check
 	if (!isInitWaveforms)
@@ -194,11 +194,11 @@ static bool ahxInitModule(const uint8_t *p)
 	song.SongCIAPeriod = tabler[(flags >> 13) & 3];
 
 	// 8bb: set up waveform pointers (Note: song.WaveformTab[2] is setup in the replayer!)
-	song.WaveformTab[0] = waves.triangle04;
-	song.WaveformTab[1] = waves.sawtooth04;
-	song.WaveformTab[3] = waves.whiteNoiseBig;
+	ahx.WaveformTab[0] = waves.triangle04;
+	ahx.WaveformTab[1] = waves.sawtooth04;
+	ahx.WaveformTab[3] = waves.whiteNoiseBig;
     
-	song.songLoaded = true;
+	ahx.songLoaded = true;
 	return true;
 }
 

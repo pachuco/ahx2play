@@ -1192,7 +1192,7 @@ static void ProcessFrame(plyVoiceTemp_t *ch)
 
 		src8 += whichSquare << 7; // *$80
 
-		song.WaveformTab[2] = ch->SquareTempBuffer;
+		ahx.WaveformTab[2] = ch->SquareTempBuffer;
 
 		const int32_t delta = (1 << 5) >> ch->Wavelength;
 		const int32_t cycles = (1 << ch->Wavelength) << 2; // 8bb: <<2 since we do bytes not dwords, unlike AHX
@@ -1215,7 +1215,7 @@ static void ProcessFrame(plyVoiceTemp_t *ch)
 	// Init the final audioPointer
 	if (ch->NewWaveform)
 	{
-		const int8_t *audioSource = song.WaveformTab[ch->Waveform];
+		const int8_t *audioSource = ahx.WaveformTab[ch->Waveform];
 
 		// Waveform 3 (doesn't need filter add)..
 		if (ch->Waveform != 3-1)
@@ -1301,7 +1301,7 @@ void SIDInterrupt(void)
 {
 	plyVoiceTemp_t *ch;
 
-	if (!song.intPlaying)
+	if (!ahx.intPlaying)
 		return;
 
 	// set audioregisters... (8bb: yes, this is done first, NOT last like in WinAHX code!)
@@ -1375,10 +1375,10 @@ void SIDInterrupt(void)
 				song.PosNr = song.ResNr;
 
 				// 8bb: added this (for WAV rendering)
-				if (song.loopCounter >= song.loopTimes)
+				if (ahx.loopCounter >= ahx.loopTimes)
 					isRecordingToWAV = false;
 				else
-					song.loopCounter++;
+					ahx.loopCounter++;
 			}
 
 			// 8bb: safety bug-fix..
@@ -1387,10 +1387,10 @@ void SIDInterrupt(void)
 				song.PosNr = 0;
 
 				// 8bb: added this (for WAV rendering)
-				if (song.loopCounter >= song.loopTimes)
+				if (ahx.loopCounter >= ahx.loopTimes)
 					isRecordingToWAV = false; // 8bb: stop WAV recording
 				else
-					song.loopCounter++;
+					ahx.loopCounter++;
 			}
 
 			song.GetNewPosition = true;
@@ -1467,7 +1467,7 @@ bool ahxPlay(int32_t subSong)
 {
 	ahxErrCode = ERR_SUCCESS;
 
-	if (!song.songLoaded)
+	if (!ahx.songLoaded)
 	{
 		ahxErrCode = ERR_SONG_NOT_LOADED;
 		return false;
@@ -1515,10 +1515,10 @@ bool ahxPlay(int32_t subSong)
 
 	song.PosJump = false;
 	song.Tempo = 6;
-	song.intPlaying = true;
+	ahx.intPlaying = true;
 
-	song.loopCounter = 0;
-	song.loopTimes = 0; // 8bb: updated later in WAV writing mode
+	ahx.loopCounter = 0;
+	ahx.loopTimes = 0; // 8bb: updated later in WAV writing mode
 
 	audio.tickSampleCounter64 = 0; // 8bb: clear tick sample counter so that it will instantly initiate a tick
 
@@ -1537,7 +1537,7 @@ void ahxStop(void)
 {
 	lockMixer();
 
-	song.intPlaying = false;
+	ahx.intPlaying = false;
 	ahxQuietAudios();
 
 	for (int32_t i = 0; i < AMIGA_VOICES; i++)
@@ -1665,7 +1665,7 @@ bool ahxRecordWAVFromRAM(const uint8_t *data, const char *fileOut, int32_t subSo
 		return false;
 	}
 
-	song.loopTimes = songLoopTimes;
+	ahx.loopTimes = songLoopTimes;
 
 	uint32_t totalBytes = 0;
 	while (isRecordingToWAV)
@@ -1742,7 +1742,7 @@ bool ahxRecordWAV(const char *fileIn, const char *fileOut, int32_t subSong,
 		return false;
 	}
 
-	song.loopTimes = songLoopTimes;
+	ahx.loopTimes = songLoopTimes;
 
 	uint32_t totalBytes = 0;
 	while (isRecordingToWAV)
