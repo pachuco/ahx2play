@@ -223,7 +223,7 @@ typedef struct
 
 extern volatile bool isRecordingToWAV;
 extern replayer_t ahx;
-extern song_t song;
+extern song_t* song;
 extern waveforms_t waves;
 extern bool isInitWaveforms;
 

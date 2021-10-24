@@ -185,13 +185,13 @@ int main(int argc, char *argv[])
 	printf("Initial stereo separation: %d%%\n", audio.stereoSeparation);
 	printf("\n");
 	printf("- SONG INFO -\n");
-	printf(" Name: %s\n", song.Name);
-	printf(" Song revision: v%d\n", song.Revision);
-	printf(" Sub-songs: %d\n", song.Subsongs);
-	printf(" Song length: %d (restart pos: %d)\n", song.LenNr, song.ResNr);
-	printf(" Song tick rate: %.4fHz (%.2f BPM)\n", song.dBPM / 2.5, song.dBPM);
-	printf(" Track length: %d\n", song.TrackLength);
-	printf(" Instruments: %d\n", song.numInstruments);
+	printf(" Name: %s\n", song->Name);
+	printf(" Song revision: v%d\n", song->Revision);
+	printf(" Sub-songs: %d\n", song->Subsongs);
+	printf(" Song length: %d (restart pos: %d)\n", song->LenNr, song->ResNr);
+	printf(" Song tick rate: %.4fHz (%.2f BPM)\n", song->dBPM / 2.5, song->dBPM);
+	printf(" Track length: %d\n", song->TrackLength);
+	printf(" Instruments: %d\n", song->numInstruments);
 	printf("\n");
 	printf("- STATUS -\n");
 
@@ -208,7 +208,7 @@ int main(int argc, char *argv[])
 		readKeyboard();
 
 		printf(" Pos: %03d/%03d - Row: %02d/%02d - Speed: %d %s               \r",
-			song.PosNr, song.LenNr, song.NoteNr, song.TrackLength, song.Tempo,
+			song->PosNr, song->LenNr, song->NoteNr, song->TrackLength, song->Tempo,
 			audio.pause ? "(PAUSED)" : "");
 
 		fflush(stdout);
@@ -318,20 +318,20 @@ static void readKeyboard(void)
 
 			case 'n': // next sub-song
 			{
-				if (song.Subsongs > 0)
+				if (song->Subsongs > 0)
 				{
-					if (song.Subsong < song.Subsongs)
-						ahxPlay(song.Subsong + 1);
+					if (song->Subsong < song->Subsongs)
+						ahxPlay(song->Subsong + 1);
 				}
 			}
 			break;
 
 			case 'p': // previous sub-song
 			{
-				if (song.Subsongs > 0)
+				if (song->Subsongs > 0)
 				{
-					if (song.Subsong > 0)
-						ahxPlay(song.Subsong - 1);
+					if (song->Subsong > 0)
+						ahxPlay(song->Subsong - 1);
 				}
 			}
 			break;

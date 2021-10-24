@@ -24,6 +24,7 @@ static const uint16_t tabler[4] = { 14209, 7104, 4736, 3552 };
 
 static bool ahxInitModule(const uint8_t *p)
 {
+    song_t* ret;
 	bool trkNullEmpty;
 	uint16_t flags;
 
@@ -36,9 +37,17 @@ static bool ahxInitModule(const uint8_t *p)
 		return false;
 	}
 
-	song.Revision = p[3];
+	ret = (song_t *)calloc(1, sizeof (song_t));
+	if (ret == NULL)
+	{
+		ahxFree();
+		ahxErrCode = ERR_OUT_OF_MEMORY;
+		return false;
+	}
 
-	if (memcmp("THX", p, 3) != 0 || song.Revision > 1) // 8bb: added revision check
+	ret->Revision = p[3];
+
+	if (memcmp("THX", p, 3) != 0 || ret->Revision > 1) // 8bb: added revision check
 	{
 		ahxErrCode = ERR_NOT_AN_AHX;
 		return false;
@@ -48,22 +57,22 @@ static bool ahxInitModule(const uint8_t *p)
 
 	READ_WORD(flags, p);
 	trkNullEmpty = !!(flags & 32768);
-	song.LenNr = flags & 0x3FF;
-	READ_WORD(song.ResNr, p);
-	READ_BYTE(song.TrackLength, p);
-	READ_BYTE(song.highestTrack, p); // max track nr. like 0
-	READ_BYTE(song.numInstruments, p); // max instr nr. 0/1-63
-	READ_BYTE(song.Subsongs, p);
-	uint32_t numTracks = song.highestTrack + 1;
+	ret->LenNr = flags & 0x3FF;
+	READ_WORD(ret->ResNr, p);
+	READ_BYTE(ret->TrackLength, p);
+	READ_BYTE(ret->highestTrack, p); // max track nr. like 0
+	READ_BYTE(ret->numInstruments, p); // max instr nr. 0/1-63
+	READ_BYTE(ret->Subsongs, p);
+	uint32_t numTracks = ret->highestTrack + 1;
 
-	if (song.ResNr >= song.LenNr) // 8bb: safety bug-fix...
-		song.ResNr = 0;
+	if (ret->ResNr >= ret->LenNr) // 8bb: safety bug-fix...
+		ret->ResNr = 0;
 
 	// 8bb: read sub-song table
-	const int32_t subSongTableBytes = song.Subsongs << 1;
+	const int32_t subSongTableBytes = ret->Subsongs << 1;
 
-	song.SubSongTable = (uint16_t *)malloc(subSongTableBytes);
-	if (song.SubSongTable == NULL)
+	ret->SubSongTable = (uint16_t *)malloc(subSongTableBytes);
+	if (ret->SubSongTable == NULL)
 	{
 		ahxFree();
 		ahxErrCode = ERR_OUT_OF_MEMORY;
@@ -71,16 +80,16 @@ static bool ahxInitModule(const uint8_t *p)
 	}
 
 	const uint16_t *ptr16 = (uint16_t *)p;
-	for (int32_t i = 0; i < song.Subsongs; i++)
-		song.SubSongTable[i] = SWAP16(ptr16[i]);
+	for (int32_t i = 0; i < ret->Subsongs; i++)
+		ret->SubSongTable[i] = SWAP16(ptr16[i]);
 	p += subSongTableBytes;
 
 
 	// 8bb: read position table
-	const int32_t posTableBytes = song.LenNr << 3;
+	const int32_t posTableBytes = ret->LenNr << 3;
 
-	song.PosTable = (uint8_t *)malloc(posTableBytes);
-	if (song.PosTable == NULL)
+	ret->PosTable = (uint8_t *)malloc(posTableBytes);
+	if (ret->PosTable == NULL)
 	{
 		ahxFree();
 		ahxErrCode = ERR_OUT_OF_MEMORY;
@@ -88,12 +97,12 @@ static bool ahxInitModule(const uint8_t *p)
 	}
 
 	for (int32_t i = 0; i < posTableBytes; i++)
-		song.PosTable[i] = *p++;
+		ret->PosTable[i] = *p++;
 
 
 	// 8bb: read track table
-	song.TrackTable = (uint8_t *)calloc(numTracks, 3*64);
-	if (song.TrackTable == NULL)
+	ret->TrackTable = (uint8_t *)calloc(numTracks, 3*64);
+	if (ret->TrackTable == NULL)
 	{
 		ahxFree();
 		ahxErrCode = ERR_OUT_OF_MEMORY;
@@ -101,7 +110,7 @@ static bool ahxInitModule(const uint8_t *p)
 	}
 
 	int32_t tracksToRead = numTracks;
-	uint8_t *dst8 = song.TrackTable;
+	uint8_t *dst8 = ret->TrackTable;
 	if (trkNullEmpty)
 	{
 		dst8 += 3*64;
@@ -110,7 +119,7 @@ static bool ahxInitModule(const uint8_t *p)
 	
 	if (tracksToRead > 0)
 	{
-		const int32_t trackBytes = song.TrackLength * 3;
+		const int32_t trackBytes = ret->TrackLength * 3;
 		for (int32_t i = 0; i < tracksToRead; i++)
 		{
 			memcpy(&dst8[i * 3 * 64], p, trackBytes);
@@ -119,43 +128,43 @@ static bool ahxInitModule(const uint8_t *p)
 	}
 
 	// 8bb: read instruments
-	for (int32_t i = 0; i < song.numInstruments; i++)
+	for (int32_t i = 0; i < ret->numInstruments; i++)
 	{
 		instrument_t *ins = (instrument_t *)p;
 
 		const int32_t instrBytes = 22 + (ins->perfLength << 2);
 
 		// 8bb: calloc is needed here, to clear all non-written perfList bytes!
-		song.Instruments[i] = (instrument_t *)calloc(1, sizeof (instrument_t));
-		if (song.Instruments[i] == NULL)
+		ret->Instruments[i] = (instrument_t *)calloc(1, sizeof (instrument_t));
+		if (ret->Instruments[i] == NULL)
 		{
 			ahxFree();
 			ahxErrCode = ERR_OUT_OF_MEMORY;
 			return false;
 		}
 
-		memcpy(song.Instruments[i], p, instrBytes);
+		memcpy(ret->Instruments[i], p, instrBytes);
 		p += instrBytes;
 	}
 
-	song.Name[255] = '\0';
+	ret->Name[255] = '\0';
 	for (int32_t i = 0; i < 255; i++)
 	{
-		song.Name[i] = (char)p[i];
-		if (song.Name[i] == '\0')
+		ret->Name[i] = (char)p[i];
+		if (ret->Name[i] == '\0')
 			break;
 	}
 
 	// 8bb: remove filter commands on rev-0 songs, if present
-	if (song.Revision == 0)
+	if (ret->Revision == 0)
 	{
 		uint8_t *ptr8;
 
 		// 8bb: clear command 4 (override filter) parameter
-		ptr8 = song.TrackTable;
-		for (int32_t i = 0; i <= song.highestTrack; i++)
+		ptr8 = ret->TrackTable;
+		for (int32_t i = 0; i <= ret->highestTrack; i++)
 		{
-			for (int32_t j = 0; j < song.TrackLength; j++)
+			for (int32_t j = 0; j < ret->TrackLength; j++)
 			{
 				const uint8_t fx = ptr8[1] & 0x0F;
 				if (fx == 4) // FX: OVERRIDE FILTER!
@@ -169,9 +178,9 @@ static bool ahxInitModule(const uint8_t *p)
 		}
 
 		// 8bb: clear command 0/4 parameter in instrument plists
-		for (int32_t i = 0; i < song.numInstruments; i++)
+		for (int32_t i = 0; i < ret->numInstruments; i++)
 		{
-			instrument_t *ins = song.Instruments[i];
+			instrument_t *ins = ret->Instruments[i];
 			if (ins == NULL)
 				continue;
 
@@ -191,13 +200,14 @@ static bool ahxInitModule(const uint8_t *p)
 		}
 	}
 
-	song.SongCIAPeriod = tabler[(flags >> 13) & 3];
+	ret->SongCIAPeriod = tabler[(flags >> 13) & 3];
 
-	// 8bb: set up waveform pointers (Note: song.WaveformTab[2] is setup in the replayer!)
+	// 8bb: set up waveform pointers (Note: ret->WaveformTab[2] is setup in the replayer!)
 	ahx.WaveformTab[0] = waves.triangle04;
 	ahx.WaveformTab[1] = waves.sawtooth04;
 	ahx.WaveformTab[3] = waves.whiteNoiseBig;
     
+    song = ret;
 	ahx.songLoaded = true;
 	return true;
 }
@@ -261,21 +271,25 @@ void ahxFree(void)
 {
 	ahxStop();
 	paulaStopAllDMAs(); // 8bb: song can be free'd now
+    
+    if (song != NULL)
+    {
+        if (song->SubSongTable != NULL)
+            free(song->SubSongTable);
 
-	if (song.SubSongTable != NULL)
-		free(song.SubSongTable);
+        if (song->PosTable != NULL)
+            free(song->PosTable);
 
-	if (song.PosTable != NULL)
-		free(song.PosTable);
+        if (song->TrackTable != NULL)
+            free(song->TrackTable);
 
-	if (song.TrackTable != NULL)
-		free(song.TrackTable);
+        for (int32_t i = 0; i < song->numInstruments; i++)
+        {
+            if (song->Instruments[i] != NULL)
+                free(song->Instruments[i]);
+        }
 
-	for (int32_t i = 0; i < song.numInstruments; i++)
-	{
-		if (song.Instruments[i] != NULL)
-			free(song.Instruments[i]);
-	}
-
-	memset(&song, 0, sizeof (song));
+        free(song);
+        song = NULL;
+    }
 }
