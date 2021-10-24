@@ -305,7 +305,7 @@ static void SetUpAudioChannels(void) // 8bb: only call this while mixer is locke
 
 	paulaStopAllDMAs();
 
-	ch = song->pvt;
+	ch = ahx.pvt;
 	for (int32_t i = 0; i < AMIGA_VOICES; i++, ch++)
 	{
 		ch->audioPointer = ahx.currentVoice[i];
@@ -712,7 +712,7 @@ static void ProcessStep(plyVoiceTemp_t *ch)
 				if (p <= 0x40)
 				{
 					// 8bb: set TrackMasterVolume for all channels
-					plyVoiceTemp_t *c = song->pvt;
+					plyVoiceTemp_t *c = ahx.pvt;
 					for (int32_t i = 0; i < AMIGA_VOICES; i++, c++)
 						c->TrackMasterVolume = (uint8_t)p;
 				}
@@ -1305,7 +1305,7 @@ void SIDInterrupt(void)
 		return;
 
 	// set audioregisters... (8bb: yes, this is done first, NOT last like in WinAHX code!)
-	ch = song->pvt;
+	ch = ahx.pvt;
 	for (int32_t i = 0; i < AMIGA_VOICES; i++, ch++)
 		SetAudio(i, ch);
 
@@ -1321,7 +1321,7 @@ void SIDInterrupt(void)
 			uint8_t *posTable = &song->PosTable[song->PosNr << 3];
 			uint8_t *posTableNext = &song->PosTable[posNext << 3];
 
-			ch = song->pvt;
+			ch = ahx.pvt;
 			for (int32_t i = 0; i < AMIGA_VOICES; i++, ch++)
 			{
 				const int32_t offset = i << 1;
@@ -1335,14 +1335,14 @@ void SIDInterrupt(void)
 		}
 
 		// - new pos or not, now treat STEPs (means 'em notes 'emself)
-		ch = song->pvt;
+		ch = ahx.pvt;
 		for (int32_t i = 0; i < AMIGA_VOICES; i++, ch++)
 			ProcessStep(ch);
 
 		song->StepWaitFrames = song->Tempo;
 	}
 
-	ch = song->pvt;
+	ch = ahx.pvt;
 	for (int32_t i = 0; i < AMIGA_VOICES; i++, ch++)
 		ProcessFrame(ch);
 
@@ -1500,7 +1500,7 @@ bool ahxPlay(int32_t subSong)
 	ahxQuietAudios();
 
 	for (int32_t i = 0; i < AMIGA_VOICES; i++)
-		InitVoiceXTemp(&song->pvt[i]);
+		InitVoiceXTemp(&ahx.pvt[i]);
 
 	SetUpAudioChannels();
 	amigaSetCIAPeriod(song->SongCIAPeriod);
@@ -1509,7 +1509,7 @@ bool ahxPlay(int32_t subSong)
 	memset(ahx.SquareTempBuffer,   0, sizeof (ahx.SquareTempBuffer));
 	memset(ahx.currentVoice,       0, sizeof (ahx.currentVoice));
 
-	plyVoiceTemp_t *ch = song->pvt;
+	plyVoiceTemp_t *ch = ahx.pvt;
 	for (int32_t i = 0; i < AMIGA_VOICES; i++, ch++)
 		ch->SquareTempBuffer = ahx.SquareTempBuffer[i];
 
@@ -1541,7 +1541,7 @@ void ahxStop(void)
 	ahxQuietAudios();
 
 	for (int32_t i = 0; i < AMIGA_VOICES; i++)
-		InitVoiceXTemp(&song->pvt[i]);
+		InitVoiceXTemp(&ahx.pvt[i]);
 
 	unlockMixer();
 }

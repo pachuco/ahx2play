@@ -172,8 +172,6 @@ typedef struct // 8bb: song strucure
 	uint8_t Subsong; // 8bb: added this
 	uint16_t SongCIAPeriod; // 8bb: added this
 
-	plyVoiceTemp_t pvt[AMIGA_VOICES];
-
 	uint16_t TrackLength;
 	uint16_t StepWaitFrames; // 0: wait step!
 	bool GetNewPosition; // flag!
@@ -217,6 +215,8 @@ typedef struct
 	int32_t loopCounter, loopTimes; // 8bb: added this
 
 	volatile bool intPlaying;
+    
+    plyVoiceTemp_t pvt[AMIGA_VOICES];
 
 	int8_t *WaveformTab[4]; // has to be inited!!!
 } replayer_t;
