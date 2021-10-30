@@ -14,12 +14,27 @@
 #include "replayer.h"
 #include "paula.h"
 
-#define READ_BYTE(x, p) x = *p++
-#define READ_WORD(x, p) x = *(uint16_t *)p; p += 2; x = SWAP16(x)
+#define SWAP16(x) \
+( \
+	(((uint16_t)((x) & 0x00FF)) << 8) | \
+	(((uint16_t)((x) & 0xFF00)) >> 8)   \
+)
+
+#define SWAP32(x) \
+( \
+	(((uint32_t)((x) & 0x000000FF)) << 24) | \
+	(((uint32_t)((x) & 0x0000FF00)) <<  8) | \
+	(((uint32_t)((x) & 0x00FF0000)) >>  8) | \
+	(((uint32_t)((x) & 0xFF000000)) >> 24)   \
+)
+
+#define READ_BYTE(x, p)  {x = *(uint8_t  *)p; p += sizeof (uint8_t);                }
+#define READ_WORD(x, p)  {x = *(uint16_t *)p; p += sizeof (uint16_t); x = SWAP16(x);}
+#define READ_DWORD(x, p) {x = *(uint32_t *)p; p += sizeof (uint32_t); x = SWAP32(x);}
 
 extern uint8_t ahxErrCode; // 8bb: replayer.c
 
-// 8bb: AHX-header speed value (0..3) -> Amiga PAL CIA period
+// 8bb: AHX-header tempo value (0..3) -> Amiga PAL CIA period
 static const uint16_t tabler[4] = { 14209, 7104, 4736, 3552 };
 
 static bool ahxInitModule(const uint8_t *p)
@@ -155,7 +170,7 @@ static bool ahxInitModule(const uint8_t *p)
 			break;
 	}
 
-	// 8bb: remove filter commands on rev-0 songs, if present
+	// 8bb: remove filter commands on rev-0 songs, if present (AHX does this)
 	if (ret->Revision == 0)
 	{
 		uint8_t *ptr8;
@@ -200,9 +215,10 @@ static bool ahxInitModule(const uint8_t *p)
 		}
 	}
 
+    // 8bb: added this (BPM/tempo)
 	ret->SongCIAPeriod = tabler[(flags >> 13) & 3];
 
-	// 8bb: set up waveform pointers (Note: ret->WaveformTab[2] is setup in the replayer!)
+	// 8bb: set up waveform pointers (Note: ret->WaveformTab[2] gets initialized in the replayer!)
 	ahx.WaveformTab[0] = waves.triangle04;
 	ahx.WaveformTab[1] = waves.sawtooth04;
 	ahx.WaveformTab[3] = waves.whiteNoiseBig;

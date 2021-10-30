@@ -18,6 +18,7 @@
 waveforms_t waves;
 bool isInitWaveforms = false;
 
+// 8bb: added +1 to all values in this table (was meant for 68k DBRA loop)
 static const uint16_t lengthTable[6+6+32+1] =
 {
 	0x04,0x08,0x10,0x20,0x40,0x80,
@@ -108,19 +109,20 @@ static void whiteNoiseGenerate(int8_t *dst8, int32_t length)
 	}
 }
 
-static int32_t fp16Clip(int32_t x)
+static inline int32_t fp16Clip(int32_t x)
 {
-	int16_t tmp = x >> 16;
-	if (tmp > 127)
-	{
-		tmp = 127;
-		return tmp << 16;
-	}
+	int16_t fp16Int = x >> 16;
 
-	if (tmp < -128)
+	if (fp16Int > 127)
 	{
-		tmp = -128;
-		return tmp << 16;
+		fp16Int = 127;
+		return fp16Int << 16;
+	}
+	
+	if (fp16Int < -128)
+	{
+		fp16Int = -128;
+		return fp16Int << 16;
 	}
 
 	return x;
@@ -143,8 +145,9 @@ static void setUpFilterWaveForms(int8_t *dst8Hi, int8_t *dst8Lo, int8_t *src8)
 			// 4 passes
             for (int32_t k = 1; k <= 4; k++)
             {
-                /* truncate lower 8 bits on 4th pass
-                ** to simulate LUT of AHX; bit-perfect output
+                /* Truncate lower 8 bits on 4th pass
+                ** to simulate bit reduced LUT of AHX.
+                ** Bit perfect result.
                 */
                 if (k == 4)
                 {
@@ -454,7 +457,10 @@ static void ProcessStep(plyVoiceTemp_t *ch)
 		}
 	}
 
-	// 8bb: effect 8 is for external timing (demo sync etc), we don't need that 
+	// 8bb: effect 8 is for external timing/syncing (probably for games/demos).
+    if (cmd == 0x8) {
+        
+    }
 
 	if (cmd == 0xD) // Effect  > D <  -  Patternbreak
 	{
@@ -477,9 +483,9 @@ static void ProcessStep(plyVoiceTemp_t *ch)
 	{
 		song->Tempo = param;
 
-		// 8bb: added this
+		// 8bb: added this for the WAV renderer
 		if (song->Tempo == 0)
-			isRecordingToWAV = false; // 8bb: stuck, stop WAV recording
+			isRecordingToWAV = false;
 	}
 
 	// Effect  > 5 <  -  Volume Slide + Tone Portamento
@@ -804,7 +810,7 @@ static void pListCommandParse(plyVoiceTemp_t *ch, uint8_t cmd, uint8_t param)
 		if (ins == NULL) // 8bb: safety bug-fix...
 			ins = &EmptyInstrument;
 
-		// 8bb: 4 bytes before perfList (apparently this is what AHX does...)
+		// 8bb: 4 bytes before perfList (this is apparently what AHX does...)
 		uint8_t *perfList = ins->perfList - 4;
 
 		/* 8bb: AHX quirk! There's no range check here.
@@ -1016,7 +1022,7 @@ static void ProcessFrame(plyVoiceTemp_t *ch)
 			/* 8bb: AHX QUIRK! Perf speed $80 results in no delay. This has to do with
 			** "sub.b #1,Dn | bgt.s .Delay". The BGT instruction will not branch if
 			** the register got overflown before the comparison (V flag set).
-			** WinAHX is not handling this correctly, porters beware!
+			** WinAHX/AHX.cpp is not handling this correctly, porters beware!
 			**
 			** "Enchanted Friday Nights" by JazzCat is a song that depends on this quirk
 			** for the lead instrument to sound right.
@@ -1144,7 +1150,7 @@ static void ProcessFrame(plyVoiceTemp_t *ch)
 			}
 
 			int32_t cycles = 1;
-			if (ch->filterSpeed < 4) // 8bb: < 4 is correct, not < 3 like in WinAHX!
+			if (ch->filterSpeed < 4) // 8bb: < 4 is correct, not < 3 like in WinAHX/AHX.cpp!
 				cycles = 5 - ch->filterSpeed;
 
 			for (int32_t i = 0; i < cycles; i++)
@@ -1304,7 +1310,7 @@ void SIDInterrupt(void)
 	if (!ahx.intPlaying)
 		return;
 
-	// set audioregisters... (8bb: yes, this is done first, NOT last like in WinAHX code!)
+	// set audioregisters... (8bb: yes, this is done here, NOT last like in WinAHX/AHX.cpp!)
 	ch = ahx.pvt;
 	for (int32_t i = 0; i < AMIGA_VOICES; i++, ch++)
 		SetAudio(i, ch);
@@ -1528,6 +1534,8 @@ bool ahxPlay(int32_t subSong)
 
 	song->dBPM = amigaCIAPeriod2Hz(song->SongCIAPeriod) * 2.5;
 
+    song->WNRandom = 0; // 8bb: Clear RNG seed (AHX doesn't do this)
+    
 	unlockMixer();
 
 	return true;
