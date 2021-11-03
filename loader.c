@@ -37,27 +37,19 @@ extern uint8_t ahxErrCode; // 8bb: replayer.c
 // 8bb: AHX-header tempo value (0..3) -> Amiga PAL CIA period
 static const uint16_t tabler[4] = { 14209, 7104, 4736, 3552 };
 
-static bool ahxInitModule(const uint8_t *p)
+song_t* ahxLoadFromRAM(const uint8_t *p)
 {
-    song_t* ret;
+    ahxErrCode = ERR_SUCCESS;
+    song_t* ret = NULL;
 	bool trkNullEmpty;
 	uint16_t flags;
-
-	ahx.songLoaded = false;
-
-	// 8bb: added this check
-	if (!isInitWaveforms)
-	{
-		ahxErrCode = ERR_NO_WAVES;
-		return false;
-	}
 
 	ret = (song_t *)calloc(1, sizeof (song_t));
 	if (ret == NULL)
 	{
-		ahxFree();
+		ahxFreeSong(ret);
 		ahxErrCode = ERR_OUT_OF_MEMORY;
-		return false;
+		return NULL;
 	}
 
 	ret->Revision = p[3];
@@ -65,7 +57,7 @@ static bool ahxInitModule(const uint8_t *p)
 	if (memcmp("THX", p, 3) != 0 || ret->Revision > 1) // 8bb: added revision check
 	{
 		ahxErrCode = ERR_NOT_AN_AHX;
-		return false;
+		return NULL;
 	}
 
 	p += 6;
@@ -89,9 +81,9 @@ static bool ahxInitModule(const uint8_t *p)
 	ret->SubSongTable = (uint16_t *)malloc(subSongTableBytes);
 	if (ret->SubSongTable == NULL)
 	{
-		ahxFree();
+		ahxFreeSong(ret);
 		ahxErrCode = ERR_OUT_OF_MEMORY;
-		return false;
+		return NULL;
 	}
 
 	const uint16_t *ptr16 = (uint16_t *)p;
@@ -106,9 +98,9 @@ static bool ahxInitModule(const uint8_t *p)
 	ret->PosTable = (uint8_t *)malloc(posTableBytes);
 	if (ret->PosTable == NULL)
 	{
-		ahxFree();
+		ahxFreeSong(ret);
 		ahxErrCode = ERR_OUT_OF_MEMORY;
-		return false;
+		return NULL;
 	}
 
 	for (int32_t i = 0; i < posTableBytes; i++)
@@ -119,9 +111,9 @@ static bool ahxInitModule(const uint8_t *p)
 	ret->TrackTable = (uint8_t *)calloc(numTracks, 3*64);
 	if (ret->TrackTable == NULL)
 	{
-		ahxFree();
+		ahxFreeSong(ret);
 		ahxErrCode = ERR_OUT_OF_MEMORY;
-		return false;
+		return NULL;
 	}
 
 	int32_t tracksToRead = numTracks;
@@ -153,9 +145,9 @@ static bool ahxInitModule(const uint8_t *p)
 		ret->Instruments[i] = (instrument_t *)calloc(1, sizeof (instrument_t));
 		if (ret->Instruments[i] == NULL)
 		{
-			ahxFree();
+			ahxFreeSong(ret);
 			ahxErrCode = ERR_OUT_OF_MEMORY;
-			return false;
+			return NULL;
 		}
 
 		memcpy(ret->Instruments[i], p, instrBytes);
@@ -217,38 +209,20 @@ static bool ahxInitModule(const uint8_t *p)
 
     // 8bb: added this (BPM/tempo)
 	ret->SongCIAPeriod = tabler[(flags >> 13) & 3];
-
-	// 8bb: set up waveform pointers (Note: ret->WaveformTab[2] gets initialized in the replayer!)
-	ahx.WaveformTab[0] = waves.triangle04;
-	ahx.WaveformTab[1] = waves.sawtooth04;
-	ahx.WaveformTab[3] = waves.whiteNoiseBig;
     
-    song = ret;
-	ahx.songLoaded = true;
-	return true;
+	return ret;
 }
 
-bool ahxLoadFromRAM(const uint8_t *data)
-{
-	ahxErrCode = ERR_SUCCESS;
-	if (!ahxInitModule(data))
-	{
-		ahxFree();
-		return false;
-	}
-
-	return true;
-}
-
-bool ahxLoad(const char *filename)
-{
+song_t* ahxLoadFromFile(const char *filename)
+{   
+    song_t* ret = NULL;
 	ahxErrCode = ERR_SUCCESS;
 
 	FILE *f = fopen(filename, "rb");
 	if (f == NULL)
 	{
 		ahxErrCode = ERR_FILE_IO;
-		return false;
+		return NULL;
 	}
 
 	fseek(f, 0, SEEK_END);
@@ -260,7 +234,7 @@ bool ahxLoad(const char *filename)
 	{
 		fclose(f);
 		ahxErrCode = ERR_OUT_OF_MEMORY;
-		return false;
+		return NULL;
 	}
 
 	if (fread(fileBuffer, 1, filesize, f) != filesize)
@@ -268,44 +242,41 @@ bool ahxLoad(const char *filename)
 		free(fileBuffer);
 		fclose(f);
 		ahxErrCode = ERR_FILE_IO;
-		return false;
+		return NULL;
 	}
 
 	fclose(f);
 
-	if (!ahxLoadFromRAM((const uint8_t *)fileBuffer))
+    ret = ahxLoadFromRAM((const uint8_t *)fileBuffer);
+	if (!ret)
 	{
 		free(fileBuffer);
-		return false;
+		return NULL;
 	}
 
 	free(fileBuffer);
-	return true;
+	return ret;
 }
 
-void ahxFree(void)
+void ahxFreeSong(song_t* pSong)
 {
-	ahxStop();
-	paulaStopAllDMAs(); // 8bb: song can be free'd now
-    
-    if (song != NULL)
+    if (pSong != NULL)
     {
-        if (song->SubSongTable != NULL)
-            free(song->SubSongTable);
+        if (pSong->SubSongTable != NULL)
+            free(pSong->SubSongTable);
 
-        if (song->PosTable != NULL)
-            free(song->PosTable);
+        if (pSong->PosTable != NULL)
+            free(pSong->PosTable);
 
-        if (song->TrackTable != NULL)
-            free(song->TrackTable);
+        if (pSong->TrackTable != NULL)
+            free(pSong->TrackTable);
 
-        for (int32_t i = 0; i < song->numInstruments; i++)
+        for (int32_t i = 0; i < pSong->numInstruments; i++)
         {
-            if (song->Instruments[i] != NULL)
-                free(song->Instruments[i]);
+            if (pSong->Instruments[i] != NULL)
+                free(pSong->Instruments[i]);
         }
 
-        free(song);
-        song = NULL;
+        free(pSong);
     }
 }

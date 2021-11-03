@@ -291,8 +291,8 @@ static instrument_t EmptyInstrument =
 static int8_t EmptyFilterSection[0x80 * 32] = {0};
 
 // 8bb: globalized
+static song_t* song = NULL;
 volatile bool isRecordingToWAV;
-song_t* song = NULL;
 replayer_t ahx;
 uint8_t ahxErrCode;
 
@@ -1463,6 +1463,36 @@ bool ahxInit(int32_t audioFreq, int32_t audioBufferSize, int32_t masterVol, int3
 	return true;
 }
 
+bool ahxLoadSong(song_t* pSong)
+{
+    if (!pSong)
+    {
+        return false;
+    }
+	// 8bb: added this check
+	if (!isInitWaveforms)
+	{
+		ahxErrCode = ERR_NO_WAVES;
+		return false;
+	}
+    
+    ahx.songLoaded = false;
+	// 8bb: set up waveform pointers (Note: ret->WaveformTab[2] gets initialized in the replayer!)
+	ahx.WaveformTab[0] = waves.triangle04;
+	ahx.WaveformTab[1] = waves.sawtooth04;
+	ahx.WaveformTab[3] = waves.whiteNoiseBig;
+    song = pSong;
+    ahx.songLoaded = true;
+    return true;
+}
+
+void ahxUnloadSong(void)
+{
+	ahxStop();
+	paulaStopAllDMAs(); // 8bb: song can be free'd now
+    song = NULL;
+}
+
 void ahxClose(void)
 {
 	closeMixer();
@@ -1617,6 +1647,7 @@ static int32_t ahxGetFrame(int16_t *streamOut) // 8bb: returns bytes mixed
 	return samplesToMix * 2 * sizeof (short);
 }
 
+/*
 // 8bb: masterVol = 0..256 (default = 256), stereoSeparation = 0..100 (percentage, default = 20)
 bool ahxRecordWAVFromRAM(const uint8_t *data, const char *fileOut, int32_t subSong,
 	int32_t songLoopTimes, int32_t audioFreq, int32_t masterVol, int32_t stereoSeparation)
@@ -1693,7 +1724,9 @@ bool ahxRecordWAVFromRAM(const uint8_t *data, const char *fileOut, int32_t subSo
 
 	return true;
 }
+*/
 
+/*
 // 8bb: masterVol = 0..256 (default = 256), stereoSeparation = 0..100 (percentage, default = 20)
 bool ahxRecordWAV(const char *fileIn, const char *fileOut, int32_t subSong,
 	int32_t songLoopTimes, int32_t audioFreq, int32_t masterVol, int32_t stereoSeparation)
@@ -1710,7 +1743,8 @@ bool ahxRecordWAV(const char *fileIn, const char *fileOut, int32_t subSong,
 	paulaSetStereoSeparation(stereoSeparation);
 	paulaSetMasterVolume(masterVol);
 
-	if (!ahxLoad(fileIn)) // 8bb: modifies error code
+    song = ahxLoadFromFile(fileIn);
+	if (!ahxLoadSong(song)) // 8bb: modifies error code
 	{
 		paulaClose();
 		return false;
@@ -1721,7 +1755,7 @@ bool ahxRecordWAV(const char *fileIn, const char *fileOut, int32_t subSong,
 	int16_t *outputBuffer = (int16_t *)malloc(maxSamplesPerTick * (2 * sizeof (int16_t)));
 	if (outputBuffer == NULL)
 	{
-		ahxFree();
+		ahxFreeSong(song);
 		paulaClose();
 		ahxErrCode = ERR_OUT_OF_MEMORY;
 		return false;
@@ -1730,7 +1764,7 @@ bool ahxRecordWAV(const char *fileIn, const char *fileOut, int32_t subSong,
 	FILE *f = fopen(fileOut, "wb");
 	if (f == NULL)
 	{
-		ahxFree();
+		ahxFreeSong(song);
 		paulaClose();
 		free(outputBuffer);
 		ahxErrCode = ERR_FILE_IO;
@@ -1744,7 +1778,7 @@ bool ahxRecordWAV(const char *fileIn, const char *fileOut, int32_t subSong,
 	{
 		isRecordingToWAV = false;
 		fclose(f);
-		ahxFree();
+		ahxFreeSong(song);
 		paulaClose();
 		free(outputBuffer);
 		return false;
@@ -1764,12 +1798,13 @@ bool ahxRecordWAV(const char *fileIn, const char *fileOut, int32_t subSong,
 	isRecordingToWAV = false;
 
 	fclose(f);
-	ahxFree();
+	ahxFreeSong(song);
 	paulaClose();
 	free(outputBuffer);
 
 	return true;
 }
+*/
 
 int32_t ahxGetErrorCode(void)
 {

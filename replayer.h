@@ -223,14 +223,13 @@ typedef struct
 
 extern volatile bool isRecordingToWAV;
 extern replayer_t ahx;
-extern song_t* song;
 extern waveforms_t waves;
 extern bool isInitWaveforms;
 
 // loader.c
-bool ahxLoadFromRAM(const uint8_t *data);
-bool ahxLoad(const char *filename);
-void ahxFree(void);
+song_t* ahxLoadFromRAM(const uint8_t *data);
+song_t* ahxLoadFromFile(const char *filename);
+void ahxFreeSong(song_t* pSong);
 // --------------------------
 
 void ahxNextPattern(void);
@@ -239,11 +238,15 @@ void ahxPrevPattern(void);
 // 8bb: masterVol = 0..256 (default = 256), stereoSeparation = 0..100 (percentage, default = 20)
 bool ahxInit(int32_t audioFreq, int32_t audioBufferSize, int32_t masterVol, int32_t stereoSeparation);
 
+bool ahxLoadSong(song_t* pSong);
+void ahxUnloadSong(void);
+
 void ahxClose(void);
 
 bool ahxPlay(int32_t subSong);
 void ahxStop(void);
 
+/*
 // 8bb: added these WAV recorders
 
 // 8bb: masterVol = 0..256 (default = 256), stereoSeparation = 0..100 (percentage, default = 20)
@@ -253,7 +256,7 @@ bool ahxRecordWAVFromRAM(const uint8_t *data, const char *fileOut, int32_t subSo
 // 8bb: masterVol = 0..256 (default = 256), stereoSeparation = 0..100 (percentage, default = 20)
 bool ahxRecordWAV(const char *fileIn, const char *fileOut, int32_t subSong,
 	int32_t songLoopTimes, int32_t audioFreq, int32_t masterVol, int32_t stereoSeparation);
-
+*/
 int32_t ahxGetErrorCode(void);
 
 void SIDInterrupt(void); // 8bb: replayer ticker

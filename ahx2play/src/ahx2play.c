@@ -33,6 +33,7 @@ static int32_t WAVSongLoopTimes = DEFAULT_WAVRENDER_LOOPS;
 static volatile bool programRunning;
 static char *filename, *WAVRenderFilename;
 static int32_t oldStereoSeparation;
+static song_t* song = NULL;
 
 static void showUsage(void);
 static void handleArguments(int argc, char *argv[]);
@@ -47,7 +48,7 @@ static void *wavRecordingThread(void *arg)
 #endif
 {
 	// 8bb: put this in a thread so that it can be cancelled at any time by pressing a key (it can get stuck in a loop)
-	ahxRecordWAV(filename, WAVRenderFilename, 0, WAVSongLoopTimes, audioFrequency, masterVolume, stereoSeparation);
+	//ahxRecordWAV(filename, WAVRenderFilename, 0, WAVSongLoopTimes, audioFrequency, masterVolume, stereoSeparation);
 
 #ifdef _WIN32
 	return 0;
@@ -111,7 +112,8 @@ int main(int argc, char *argv[])
 	}
 
 	// Load song
-	if (!ahxLoad(filename))
+    song = ahxLoadFromFile(filename);
+	if (!ahxLoadSong(song))
 	{
 		ahxClose();
 
@@ -143,7 +145,7 @@ int main(int argc, char *argv[])
 	// Play song (start at song #0)
 	if (!ahxPlay(0))
 	{
-		ahxFree();
+		ahxFreeSong(song);
 		ahxClose();
 
 		printf("Error playing AHX module: ");
@@ -221,9 +223,9 @@ int main(int argc, char *argv[])
 #endif
 	showTextCursor();
 
+    ahxUnloadSong();
 	// Free loaded song
-	ahxFree();
-
+	ahxFreeSong(song);
 	// Close AHX system
 	ahxClose();
 
