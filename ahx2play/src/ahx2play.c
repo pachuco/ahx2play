@@ -210,7 +210,7 @@ int main(int argc, char *argv[])
 		readKeyboard();
 
 		printf(" Pos: %03d/%03d - Row: %02d/%02d - Speed: %d %s               \r",
-			song->PosNr, song->LenNr, song->NoteNr, song->TrackLength, song->Tempo,
+			song->PosNr, song->LenNr, song->NoteNr, song->TrackLength, ahx.Tempo,
 			audio.pause ? "(PAUSED)" : "");
 
 		fflush(stdout);
@@ -322,8 +322,8 @@ static void readKeyboard(void)
 			{
 				if (song->Subsongs > 0)
 				{
-					if (song->Subsong < song->Subsongs)
-						ahxPlay(song->Subsong + 1);
+					if (ahx.Subsong < song->Subsongs)
+						ahxPlay(ahx.Subsong + 1);
 				}
 			}
 			break;
@@ -332,8 +332,8 @@ static void readKeyboard(void)
 			{
 				if (song->Subsongs > 0)
 				{
-					if (song->Subsong > 0)
-						ahxPlay(song->Subsong - 1);
+					if (ahx.Subsong > 0)
+						ahxPlay(ahx.Subsong - 1);
 				}
 			}
 			break;

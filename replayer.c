@@ -421,7 +421,7 @@ static void ProcessStep(plyVoiceTemp_t *ch)
 
 		if (eCmd == 0xC) // Effect  > EC<  -  NoteCut
 		{
-			if (eParam < song->Tempo)
+			if (eParam < ahx.Tempo)
 			{
 				ch->NoteCutWait = eParam;
 				ch->NoteCutOn = true;
@@ -435,7 +435,7 @@ static void ProcessStep(plyVoiceTemp_t *ch)
 			{
 				ch->NoteDelayOn = false;
 			}
-			else if (eParam < song->Tempo)
+			else if (eParam < ahx.Tempo)
 			{
 				ch->NoteDelayWait = eParam;
 				if (ch->NoteDelayWait != 0)
@@ -481,10 +481,10 @@ static void ProcessStep(plyVoiceTemp_t *ch)
 
 	if (cmd == 0xF) // Effect  > F <  -  Set Tempo
 	{
-		song->Tempo = param;
+		ahx.Tempo = param;
 
 		// 8bb: added this for the WAV renderer
-		if (song->Tempo == 0)
+		if (ahx.Tempo == 0)
 			isRecordingToWAV = false;
 	}
 
@@ -875,7 +875,7 @@ static void ProcessFrame(plyVoiceTemp_t *ch)
 		uint8_t nextInstr = ((bytes[0] & 3) << 4) | (bytes[1] >> 4);
 		if (nextInstr != 0)
 		{
-			int8_t range = song->Tempo - ch->HardCut; // range 1->7, tempo=6, hc=1, cut at tick 5, right
+			int8_t range = ahx.Tempo - ch->HardCut; // range 1->7, tempo=6, hc=1, cut at tick 5, right
 			if (range < 0)
 				range = 0; // tempo=2, hc=7, cut at tick 0 (NOW!!)
 
@@ -883,7 +883,7 @@ static void ProcessFrame(plyVoiceTemp_t *ch)
 			{
 				ch->NoteCutOn = true;
 				ch->NoteCutWait = range;
-				ch->HardCutReleaseF = 0 - (ch->NoteCutWait - song->Tempo);
+				ch->HardCutReleaseF = 0 - (ch->NoteCutWait - ahx.Tempo);
 			}
 
 			ch->HardCut = 0;
@@ -1315,9 +1315,9 @@ void SIDInterrupt(void)
 	for (int32_t i = 0; i < AMIGA_VOICES; i++, ch++)
 		SetAudio(i, ch);
 
-	if (song->StepWaitFrames == 0)
+	if (ahx.StepWaitFrames == 0)
 	{
-		if (song->GetNewPosition)
+		if (ahx.GetNewPosition)
 		{
 			uint16_t posNext = song->PosNr + 1;
 			if (posNext == song->LenNr)
@@ -1337,7 +1337,7 @@ void SIDInterrupt(void)
 				ch->NextTranspose = posTableNext[offset+1];
 			}
 
-			song->GetNewPosition = false; // got new pos.
+			ahx.GetNewPosition = false; // got new pos.
 		}
 
 		// - new pos or not, now treat STEPs (means 'em notes 'emself)
@@ -1345,15 +1345,15 @@ void SIDInterrupt(void)
 		for (int32_t i = 0; i < AMIGA_VOICES; i++, ch++)
 			ProcessStep(ch);
 
-		song->StepWaitFrames = song->Tempo;
+		ahx.StepWaitFrames = ahx.Tempo;
 	}
 
 	ch = ahx.pvt;
 	for (int32_t i = 0; i < AMIGA_VOICES; i++, ch++)
 		ProcessFrame(ch);
 
-	song->StepWaitFrames--;
-	if (song->StepWaitFrames == 0)
+	ahx.StepWaitFrames--;
+	if (ahx.StepWaitFrames == 0)
 	{
 		if (!song->PatternBreak)
 		{
@@ -1399,7 +1399,7 @@ void SIDInterrupt(void)
 					ahx.loopCounter++;
 			}
 
-			song->GetNewPosition = true;
+			ahx.GetNewPosition = true;
 		}
 	}
 }
@@ -1517,7 +1517,7 @@ bool ahxPlay(int32_t subSong)
 
 	lockMixer();
 
-	song->Subsong = 0;
+	ahx.Subsong = 0;
 	song->PosNr = 0;
 	if (subSong > 0 && song->Subsongs > 0)
 	{
@@ -1525,12 +1525,12 @@ bool ahxPlay(int32_t subSong)
 		if (subSong >= song->Subsongs)
 			subSong = song->Subsongs-1;
 
-		song->Subsong = (uint8_t)(subSong + 1);
+		ahx.Subsong = (uint8_t)(subSong + 1);
 		song->PosNr = song->SubSongTable[subSong];
 	}
 
-	song->StepWaitFrames = 0;
-	song->GetNewPosition = true;
+	ahx.StepWaitFrames = 0;
+	ahx.GetNewPosition = true;
 	song->NoteNr = 0;
 
 	ahxQuietAudios();
@@ -1550,7 +1550,7 @@ bool ahxPlay(int32_t subSong)
 		ch->SquareTempBuffer = ahx.SquareTempBuffer[i];
 
 	song->PosJump = false;
-	song->Tempo = 6;
+	ahx.Tempo = 6;
 	ahx.intPlaying = true;
 
 	ahx.loopCounter = 0;

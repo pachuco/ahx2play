@@ -169,13 +169,9 @@ typedef struct // 8bb: song strucure
 	uint8_t highestTrack, numInstruments;
 	uint8_t Subsongs;
 
-	uint8_t Subsong; // 8bb: added this
 	uint16_t SongCIAPeriod; // 8bb: added this
 
 	uint16_t TrackLength;
-	uint16_t StepWaitFrames; // 0: wait step!
-	bool GetNewPosition; // flag!
-	uint8_t Tempo; // some default?
 	double dBPM; // 8bb: added this
 	bool PatternBreak;
 
@@ -219,6 +215,11 @@ typedef struct
     plyVoiceTemp_t pvt[AMIGA_VOICES];
 
 	int8_t *WaveformTab[4]; // has to be inited!!!
+    
+    uint8_t Subsong; // 8bb: added this
+	uint16_t StepWaitFrames; // 0: wait step!
+	bool GetNewPosition; // flag!
+	uint8_t Tempo; // some default?
 } replayer_t;
 
 extern volatile bool isRecordingToWAV;
