@@ -210,7 +210,7 @@ int main(int argc, char *argv[])
 		readKeyboard();
 
 		printf(" Pos: %03d/%03d - Row: %02d/%02d - Speed: %d %s               \r",
-			song->PosNr, song->LenNr, song->NoteNr, song->TrackLength, ahx.Tempo,
+			ahx.PosNr, song->LenNr, ahx.NoteNr, song->TrackLength, ahx.Tempo,
 			audio.pause ? "(PAUSED)" : "");
 
 		fflush(stdout);
