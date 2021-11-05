@@ -36,27 +36,20 @@ extern uint8_t ahxErrCode; // 8bb: replayer.c
 
 song_t* ahxLoadFromRAM(const uint8_t *p)
 {
+    #define ERR(_E) {ahxErrCode = _E; goto l_fail;}
     ahxErrCode = ERR_SUCCESS;
     song_t* ret = NULL;
 	bool trkNullEmpty;
 	uint16_t flags;
 
 	ret = (song_t *)calloc(1, sizeof (song_t));
-	if (ret == NULL)
-	{
-		ahxFreeSong(ret);
-		ahxErrCode = ERR_OUT_OF_MEMORY;
-		return NULL;
-	}
+	if (ret == NULL) ERR(ERR_OUT_OF_MEMORY);
 
 	ret->Revision = p[3];
 
 	if (memcmp("THX", p, 3) != 0 || ret->Revision > 1) // 8bb: added revision check
-	{
-		ahxErrCode = ERR_NOT_AN_AHX;
-		return NULL;
-	}
-
+        ERR(ERR_NOT_AN_AHX);
+    
 	p += 6;
 
 	READ_WORD(flags, p);
@@ -78,11 +71,7 @@ song_t* ahxLoadFromRAM(const uint8_t *p)
 
 	ret->SubSongTable = (uint16_t *)malloc(subSongTableBytes);
 	if (ret->SubSongTable == NULL)
-	{
-		ahxFreeSong(ret);
-		ahxErrCode = ERR_OUT_OF_MEMORY;
-		return NULL;
-	}
+        ERR(ERR_OUT_OF_MEMORY);
 
 	const uint16_t *ptr16 = (uint16_t *)p;
 	for (int32_t i = 0; i < ret->Subsongs; i++)
@@ -95,11 +84,7 @@ song_t* ahxLoadFromRAM(const uint8_t *p)
 
 	ret->PosTable = (uint8_t *)malloc(posTableBytes);
 	if (ret->PosTable == NULL)
-	{
-		ahxFreeSong(ret);
-		ahxErrCode = ERR_OUT_OF_MEMORY;
-		return NULL;
-	}
+        ERR(ERR_OUT_OF_MEMORY);
 
 	for (int32_t i = 0; i < posTableBytes; i++)
 		ret->PosTable[i] = *p++;
@@ -108,11 +93,7 @@ song_t* ahxLoadFromRAM(const uint8_t *p)
 	// 8bb: read track table
 	ret->TrackTable = (uint8_t *)calloc(numTracks, 3*64);
 	if (ret->TrackTable == NULL)
-	{
-		ahxFreeSong(ret);
-		ahxErrCode = ERR_OUT_OF_MEMORY;
-		return NULL;
-	}
+        ERR(ERR_OUT_OF_MEMORY);
 
 	int32_t tracksToRead = numTracks;
 	uint8_t *dst8 = ret->TrackTable;
@@ -142,11 +123,7 @@ song_t* ahxLoadFromRAM(const uint8_t *p)
 		// 8bb: calloc is needed here, to clear all non-written perfList bytes!
 		ret->Instruments[i] = (instrument_t *)calloc(1, sizeof (instrument_t));
 		if (ret->Instruments[i] == NULL)
-		{
-			ahxFreeSong(ret);
-			ahxErrCode = ERR_OUT_OF_MEMORY;
-			return NULL;
-		}
+            ERR(ERR_OUT_OF_MEMORY);
 
 		memcpy(ret->Instruments[i], p, instrBytes);
 		p += instrBytes;
@@ -206,6 +183,11 @@ song_t* ahxLoadFromRAM(const uint8_t *p)
 	}
     
 	return ret;
+    
+    #undef ERR
+    l_fail:
+        ahxFreeSong(ret);
+        return NULL;
 }
 
 song_t* ahxLoadFromFile(const char *filename)
