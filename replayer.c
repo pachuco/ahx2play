@@ -295,7 +295,6 @@ static int8_t EmptyFilterSection[0x80 * 32] = {0};
 
 // 8bb: globalized
 static song_t* song = NULL;
-volatile bool isRecordingToWAV;
 replayer_t ahx;
 uint8_t ahxErrCode;
 
@@ -488,7 +487,7 @@ static void ProcessStep(plyVoiceTemp_t *ch)
 
 		// 8bb: added this for the WAV renderer
 		if (ahx.Tempo == 0)
-			isRecordingToWAV = false;
+			ahx.isRecordingToWAV = false;
 	}
 
 	// Effect  > 5 <  -  Volume Slide + Tone Portamento
@@ -1385,7 +1384,7 @@ void SIDInterrupt(void)
 
 				// 8bb: added this (for WAV rendering)
 				if (ahx.loopCounter >= ahx.loopTimes)
-					isRecordingToWAV = false;
+					ahx.isRecordingToWAV = false;
 				else
 					ahx.loopCounter++;
 			}
@@ -1397,7 +1396,7 @@ void SIDInterrupt(void)
 
 				// 8bb: added this (for WAV rendering)
 				if (ahx.loopCounter >= ahx.loopTimes)
-					isRecordingToWAV = false; // 8bb: stop WAV recording
+					ahx.isRecordingToWAV = false; // 8bb: stop WAV recording
 				else
 					ahx.loopCounter++;
 			}
@@ -1696,10 +1695,10 @@ bool ahxRecordWAVFromRAM(const uint8_t *data, const char *fileOut, int32_t subSo
 
 	writeWAVHeader(f, audioFreq);
 
-	isRecordingToWAV = true;
+	ahx.isRecordingToWAV = true;
 	if (!ahxPlay(subSong)) // 8bb: modifies error code (also resets audio.tickSampleCounter64)
 	{
-		isRecordingToWAV = false;
+		ahx.isRecordingToWAV = false;
 		fclose(f);
 		ahxFree();
 		paulaClose();
@@ -1710,7 +1709,7 @@ bool ahxRecordWAVFromRAM(const uint8_t *data, const char *fileOut, int32_t subSo
 	ahx.loopTimes = songLoopTimes;
 
 	uint32_t totalBytes = 0;
-	while (isRecordingToWAV)
+	while (ahx.isRecordingToWAV)
 	{
 		const int32_t bytesMixed = ahxGetFrame(outputBuffer);
 		fwrite(outputBuffer, 1, bytesMixed, f);
@@ -1718,7 +1717,7 @@ bool ahxRecordWAVFromRAM(const uint8_t *data, const char *fileOut, int32_t subSo
 	}
 
 	finishWAVHeader(f, totalBytes);
-	isRecordingToWAV = false;
+	ahx.isRecordingToWAV = false;
 
 	fclose(f);
 	ahxFree();
@@ -1776,10 +1775,10 @@ bool ahxRecordWAV(const char *fileIn, const char *fileOut, int32_t subSong,
 
 	writeWAVHeader(f, audioFreq);
 
-	isRecordingToWAV = true;
+	ahx.isRecordingToWAV = true;
 	if (!ahxPlay(subSong)) // 8bb: modifies error code (also resets audio.tickSampleCounter64)
 	{
-		isRecordingToWAV = false;
+		ahx.isRecordingToWAV = false;
 		fclose(f);
 		ahxFreeSong(song);
 		paulaClose();
@@ -1790,7 +1789,7 @@ bool ahxRecordWAV(const char *fileIn, const char *fileOut, int32_t subSong,
 	ahx.loopTimes = songLoopTimes;
 
 	uint32_t totalBytes = 0;
-	while (isRecordingToWAV)
+	while (ahx.isRecordingToWAV)
 	{
 		const uint32_t size = ahxGetFrame(outputBuffer);
 		fwrite(outputBuffer, 1, size, f);
@@ -1798,7 +1797,7 @@ bool ahxRecordWAV(const char *fileIn, const char *fileOut, int32_t subSong,
 	}
 
 	finishWAVHeader(f, totalBytes);
-	isRecordingToWAV = false;
+	ahx.isRecordingToWAV = false;
 
 	fclose(f);
 	ahxFreeSong(song);

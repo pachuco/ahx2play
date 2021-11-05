@@ -202,6 +202,7 @@ typedef struct
 	bool songLoaded; // 8bb: added this
 	int32_t loopCounter, loopTimes; // 8bb: added this
 
+    volatile bool isRecordingToWAV;
 	volatile bool intPlaying;
     
     plyVoiceTemp_t pvt[AMIGA_VOICES];

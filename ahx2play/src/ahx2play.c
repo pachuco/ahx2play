@@ -378,7 +378,7 @@ static int32_t renderToWav(void)
 	strcpy(WAVRenderFilename, filename);
 	strcat(WAVRenderFilename, ".wav");
 
-	isRecordingToWAV = true; // this is also set in wavRecordingThread(), but do it here to be sure...
+	ahx.isRecordingToWAV = true; // this is also set in wavRecordingThread(), but do it here to be sure...
 	if (!createSingleThread(wavRecordingThread))
 	{
 		printf("Error: Couldn't create WAV rendering thread!\n");
@@ -391,10 +391,10 @@ static int32_t renderToWav(void)
 #ifndef _WIN32
 	modifyTerminal();
 #endif
-	while (isRecordingToWAV)
+	while (ahx.isRecordingToWAV)
 	{
 		if ( _kbhit())
-			isRecordingToWAV = false;
+			ahx.isRecordingToWAV = false;
 
 		Sleep(50);
 	}
