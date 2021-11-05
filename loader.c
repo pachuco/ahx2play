@@ -37,13 +37,15 @@ extern uint8_t ahxErrCode; // 8bb: replayer.c
 song_t* ahxLoadFromRAM(const uint8_t *p)
 {
     #define ERR(_E) {ahxErrCode = _E; goto l_fail;}
-    ahxErrCode = ERR_SUCCESS;
     song_t* ret = NULL;
 	bool trkNullEmpty;
 	uint16_t flags;
 
+    ahxErrCode = ERR_SUCCESS;
+    
 	ret = (song_t *)calloc(1, sizeof (song_t));
-	if (ret == NULL) ERR(ERR_OUT_OF_MEMORY);
+	if (ret == NULL)
+        ERR(ERR_OUT_OF_MEMORY);
 
 	ret->Revision = p[3];
 
@@ -191,48 +193,41 @@ song_t* ahxLoadFromRAM(const uint8_t *p)
 }
 
 song_t* ahxLoadFromFile(const char *filename)
-{   
+{
+    #define ERR(_E) {ahxErrCode = _E; goto l_fail;}
     song_t* ret = NULL;
+    uint8_t *fileBuffer = NULL;
+    FILE *f = NULL;
+    
 	ahxErrCode = ERR_SUCCESS;
 
-	FILE *f = fopen(filename, "rb");
+	f = fopen(filename, "rb");
 	if (f == NULL)
-	{
-		ahxErrCode = ERR_FILE_IO;
-		return NULL;
-	}
-
+        ERR(ERR_FILE_IO);
+    
 	fseek(f, 0, SEEK_END);
 	const uint32_t filesize = (uint32_t)ftell(f);
 	rewind(f);
 
-	uint8_t *fileBuffer = (uint8_t *)malloc(filesize);
+	fileBuffer = (uint8_t *)malloc(filesize);
 	if (fileBuffer == NULL)
-	{
-		fclose(f);
-		ahxErrCode = ERR_OUT_OF_MEMORY;
-		return NULL;
-	}
+        ERR(ERR_OUT_OF_MEMORY);
 
 	if (fread(fileBuffer, 1, filesize, f) != filesize)
-	{
-		free(fileBuffer);
-		fclose(f);
-		ahxErrCode = ERR_FILE_IO;
-		return NULL;
-	}
-
+        ERR(ERR_FILE_IO);
+    
 	fclose(f);
 
     ret = ahxLoadFromRAM((const uint8_t *)fileBuffer);
-	if (!ret)
-	{
-		free(fileBuffer);
-		return NULL;
-	}
 
 	free(fileBuffer);
 	return ret;
+    
+    #undef ERR
+    l_fail:
+        if (fileBuffer) free(fileBuffer);
+        if (f) fclose(f);
+        return NULL;
 }
 
 void ahxFreeSong(song_t* pSong)
