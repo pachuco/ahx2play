@@ -223,8 +223,6 @@ typedef struct
 
 extern volatile bool isRecordingToWAV;
 extern replayer_t ahx;
-extern waveforms_t waves;
-extern bool isInitWaveforms;
 
 // loader.c
 song_t* ahxLoadFromRAM(const uint8_t *data);

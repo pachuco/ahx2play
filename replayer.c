@@ -15,8 +15,8 @@
 #include <math.h> // ceil()
 #include "replayer.h"
 
-waveforms_t waves;
-bool isInitWaveforms = false;
+static waveforms_t waves;
+static bool isInitWaveforms = false;
 
 // 8bb: added +1 to all values in this table (was meant for 68k DBRA loop)
 static const uint16_t lengthTable[6+6+32+1] =
