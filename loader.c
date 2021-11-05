@@ -225,8 +225,8 @@ song_t* ahxLoadFromFile(const char *filename)
     
     #undef ERR
     l_fail:
-        if (fileBuffer) free(fileBuffer);
-        if (f) fclose(f);
+        if (fileBuffer != NULL) free(fileBuffer);
+        if (f != NULL) fclose(f);
         return NULL;
 }
 
