@@ -191,7 +191,7 @@ int main(int argc, char *argv[])
 	printf(" Song revision: v%d\n", song->Revision);
 	printf(" Sub-songs: %d\n", song->Subsongs);
 	printf(" Song length: %d (restart pos: %d)\n", song->LenNr, song->ResNr);
-	printf(" Song tick rate: %.4fHz (%.2f BPM)\n", song->dBPM / 2.5, song->dBPM);
+	printf(" Song tick rate: %.4fHz (%.2f BPM)\n", ahx.dBPM / 2.5, ahx.dBPM);
 	printf(" Track length: %d\n", song->TrackLength);
 	printf(" Instruments: %d\n", song->numInstruments);
 	printf("\n");

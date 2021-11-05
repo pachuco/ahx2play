@@ -169,10 +169,9 @@ typedef struct // 8bb: song strucure
 	uint8_t highestTrack, numInstruments;
 	uint8_t Subsongs;
 
-	uint16_t SongCIAPeriod; // 8bb: added this
+	uint16_t SongCIAPeriodIndex; // 8bb: added this
 
 	uint16_t TrackLength;
-	double dBPM; // 8bb: added this
 	bool PatternBreak;
 
 	uint16_t PosJump;
@@ -220,6 +219,7 @@ typedef struct
 	uint16_t StepWaitFrames; // 0: wait step!
 	bool GetNewPosition; // flag!
 	uint8_t Tempo; // some default?
+	double dBPM; // 8bb: added this
 } replayer_t;
 
 extern volatile bool isRecordingToWAV;

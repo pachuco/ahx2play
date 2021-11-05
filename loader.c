@@ -34,9 +34,6 @@
 
 extern uint8_t ahxErrCode; // 8bb: replayer.c
 
-// 8bb: AHX-header tempo value (0..3) -> Amiga PAL CIA period
-static const uint16_t tabler[4] = { 14209, 7104, 4736, 3552 };
-
 song_t* ahxLoadFromRAM(const uint8_t *p)
 {
     ahxErrCode = ERR_SUCCESS;
@@ -65,6 +62,7 @@ song_t* ahxLoadFromRAM(const uint8_t *p)
 	READ_WORD(flags, p);
 	trkNullEmpty = !!(flags & 32768);
 	ret->LenNr = flags & 0x3FF;
+	ret->SongCIAPeriodIndex = (flags >> 13) & 3; // 8bb: added this (BPM/tempo)
 	READ_WORD(ret->ResNr, p);
 	READ_BYTE(ret->TrackLength, p);
 	READ_BYTE(ret->highestTrack, p); // max track nr. like 0
@@ -206,9 +204,6 @@ song_t* ahxLoadFromRAM(const uint8_t *p)
 			}
 		}
 	}
-
-    // 8bb: added this (BPM/tempo)
-	ret->SongCIAPeriod = tabler[(flags >> 13) & 3];
     
 	return ret;
 }

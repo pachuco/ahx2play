@@ -271,6 +271,9 @@ static const int16_t vibTable[64] =
 	-180,-161,-141,-120, -97, -74, -49, -24
 };
 
+// 8bb: AHX-header tempo value (0..3) -> Amiga PAL CIA period
+static const uint16_t tabler[4] = { 14209, 7104, 4736, 3552 };
+
 // 8bb: set default values for EmptyInstrument (used for non-loaded instruments in replayer)
 static instrument_t EmptyInstrument =
 {
@@ -1539,7 +1542,7 @@ bool ahxPlay(int32_t subSong)
 		InitVoiceXTemp(&ahx.pvt[i]);
 
 	SetUpAudioChannels();
-	amigaSetCIAPeriod(song->SongCIAPeriod);
+	amigaSetCIAPeriod(tabler[song->SongCIAPeriodIndex]);
 
 	// 8bb: Added this. Clear custom data (these are put in the waves struct for dword-alignment)
 	memset(ahx.SquareTempBuffer,   0, sizeof (ahx.SquareTempBuffer));
@@ -1562,7 +1565,7 @@ bool ahxPlay(int32_t subSong)
 	resetCachedMixerPeriod();
 	resetAudioDithering();
 
-	song->dBPM = amigaCIAPeriod2Hz(song->SongCIAPeriod) * 2.5;
+	ahx.dBPM = amigaCIAPeriod2Hz(tabler[song->SongCIAPeriodIndex]) * 2.5;
 
     song->WNRandom = 0; // 8bb: Clear RNG seed (AHX doesn't do this)
     
