@@ -187,13 +187,13 @@ int main(int argc, char *argv[])
 	printf("Initial stereo separation: %d%%\n", audio.stereoSeparation);
 	printf("\n");
 	printf("- SONG INFO -\n");
-	printf(" Name: %s\n", song->Name);
-	printf(" Song revision: v%d\n", song->Revision);
-	printf(" Sub-songs: %d\n", song->Subsongs);
-	printf(" Song length: %d (restart pos: %d)\n", song->LenNr, song->ResNr);
+	printf(" Name: %s\n", ahx.song->Name);
+	printf(" Song revision: v%d\n", ahx.song->Revision);
+	printf(" Sub-songs: %d\n", ahx.song->Subsongs);
+	printf(" Song length: %d (restart pos: %d)\n", ahx.song->LenNr, ahx.song->ResNr);
 	printf(" Song tick rate: %.4fHz (%.2f BPM)\n", ahx.dBPM / 2.5, ahx.dBPM);
-	printf(" Track length: %d\n", song->TrackLength);
-	printf(" Instruments: %d\n", song->numInstruments);
+	printf(" Track length: %d\n", ahx.song->TrackLength);
+	printf(" Instruments: %d\n", ahx.song->numInstruments);
 	printf("\n");
 	printf("- STATUS -\n");
 
@@ -210,7 +210,7 @@ int main(int argc, char *argv[])
 		readKeyboard();
 
 		printf(" Pos: %03d/%03d - Row: %02d/%02d - Speed: %d %s               \r",
-			ahx.PosNr, song->LenNr, ahx.NoteNr, song->TrackLength, ahx.Tempo,
+			ahx.PosNr, ahx.song->LenNr, ahx.NoteNr, ahx.song->TrackLength, ahx.Tempo,
 			audio.pause ? "(PAUSED)" : "");
 
 		fflush(stdout);
@@ -320,9 +320,9 @@ static void readKeyboard(void)
 
 			case 'n': // next sub-song
 			{
-				if (song->Subsongs > 0)
+				if (ahx.song->Subsongs > 0)
 				{
-					if (ahx.Subsong < song->Subsongs)
+					if (ahx.Subsong < ahx.song->Subsongs)
 						ahxPlay(ahx.Subsong + 1);
 				}
 			}
@@ -330,7 +330,7 @@ static void readKeyboard(void)
 
 			case 'p': // previous sub-song
 			{
-				if (song->Subsongs > 0)
+				if (ahx.song->Subsongs > 0)
 				{
 					if (ahx.Subsong > 0)
 						ahxPlay(ahx.Subsong - 1);

@@ -196,6 +196,7 @@ typedef struct
 
 typedef struct
 {
+    song_t* song;
 	int8_t SquareTempBuffer[AMIGA_VOICES][0x80];
 	int8_t currentVoice[AMIGA_VOICES][0x280];
 
@@ -222,7 +223,6 @@ typedef struct
 	uint16_t PosNr;
 } replayer_t;
 
-extern volatile bool isRecordingToWAV;
 extern replayer_t ahx;
 
 // loader.c
