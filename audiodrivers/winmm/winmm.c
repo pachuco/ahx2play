@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <windows.h>
 #include <mmsystem.h>
-#include "../../paula.h"
+#include "winmm.h"
 
 #define MIX_BUF_NUM 4
 
@@ -21,6 +21,7 @@ static int32_t bufferSize;
 static HANDLE hThread, hAudioSem;
 static WAVEHDR waveBlocks[MIX_BUF_NUM];
 static HWAVEOUT hWave;
+static StreamCallback_t* funCallback;
 
 static DWORD WINAPI mixThread(LPVOID lpParam)
 {
@@ -32,7 +33,7 @@ static DWORD WINAPI mixThread(LPVOID lpParam)
 		if (!mixerLocked)
 		{
 			mixerBusy = true;
-			paulaOutputSamples((int16_t *)waveBlock->lpData, bufferSize); // ../../paula.h
+			funCallback((int16_t *)waveBlock->lpData, bufferSize);
 			mixerBusy = false;
 		}
 
@@ -121,7 +122,7 @@ void closeMixer(void)
 	}
 }
 
-bool openMixer(int32_t mixingFrequency, int32_t mixingBufferSize)
+bool openMixer(int32_t mixingFrequency, int32_t mixingBufferSize, StreamCallback_t* cbRender)
 {
 	DWORD threadID;
 	WAVEFORMATEX wfx;
@@ -140,6 +141,8 @@ bool openMixer(int32_t mixingFrequency, int32_t mixingBufferSize)
 	wfx.wFormatTag = WAVE_FORMAT_PCM;
 	wfx.nBlockAlign = wfx.nChannels * (wfx.wBitsPerSample / 8);
 	wfx.nAvgBytesPerSec = wfx.nSamplesPerSec * wfx.nBlockAlign;
+    
+    funCallback = cbRender;
 
 	if (waveOutOpen(&hWave, WAVE_MAPPER, &wfx, (DWORD_PTR)&waveProc, 0, CALLBACK_FUNCTION) != MMSYSERR_NOERROR)
 		goto omError;

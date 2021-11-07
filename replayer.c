@@ -1453,7 +1453,7 @@ bool ahxInit(int32_t audioFreq, int32_t audioBufferSize, int32_t masterVol, int3
 	paulaSetStereoSeparation(stereoSeparation);
 	paulaSetMasterVolume(masterVol);
 
-	if (!openMixer(audioFreq, audioBufferSize))
+	if (!openMixer(audioFreq, audioBufferSize, paulaOutputSamples))
 	{
 		closeMixer();
 		paulaClose();

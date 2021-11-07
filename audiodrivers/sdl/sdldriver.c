@@ -4,13 +4,14 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
-#include "../../paula.h"
+#include "sdldriver.h"
 
 static SDL_AudioDeviceID dev;
+static StreamCallback_t* funCallback;
 
 static void SDLCALL audioCallback(void *userdata, Uint8 *stream, int len)
 {
-	paulaOutputSamples((int16_t *)stream, len / 4); // ../../paula.h
+	funCallback((int16_t *)stream, len / 4);
 	(void)userdata;
 }
 
@@ -26,7 +27,7 @@ void unlockMixer(void)
 		SDL_UnlockAudioDevice(dev);
 }
 
-bool openMixer(int32_t mixingFrequency, int32_t mixingBufferSize)
+bool openMixer(int32_t mixingFrequency, int32_t mixingBufferSize, StreamCallback_t* cbRender)
 {
 	SDL_AudioSpec want, have;
 
@@ -42,6 +43,8 @@ bool openMixer(int32_t mixingFrequency, int32_t mixingBufferSize)
 	want.channels = 2;
 	want.samples = (uint16_t)mixingBufferSize;
 	want.callback = audioCallback;
+    
+    funCallback = cbRender;
 
 	dev = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
 	if (dev == 0)
