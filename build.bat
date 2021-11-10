@@ -8,7 +8,7 @@ set opts=%opts% -Wl,--enable-stdcall-fixup -static-libgcc
 set opts=%opts% -DAUDIODRIVER_WINMM
 set linkinc=-lwinmm
 
-set files=.\ahx2play\src\ahx2play.c .\ahx2play\src\posix.c
+set files=.\ahx2play\ahx2play.c .\ahx2play\posix.c
 set files=%files% .\audiodrivers\winmm\winmm.c
 set files=%files% .\replayer.c .\song.c .\paula.c
 set errlog=.\ahx2play_err.log
