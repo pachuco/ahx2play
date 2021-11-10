@@ -10,7 +10,7 @@ set linkinc=-lwinmm
 
 set files=.\ahx2play\src\ahx2play.c .\ahx2play\src\posix.c
 set files=%files% .\audiodrivers\winmm\winmm.c
-set files=%files% .\replayer.c .\loader.c .\paula.c
+set files=%files% .\replayer.c .\song.c .\paula.c
 set errlog=.\ahx2play_err.log
 set out=C:\p_files\prog\_proj\CodeCocks\Hively_Replayer\ahx2play.exe
 
