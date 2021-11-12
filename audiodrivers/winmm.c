@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <windows.h>
 #include <mmsystem.h>
-#include "winmm.h"
+#include "driver.h"
 
 #define MIX_BUF_NUM 4
 

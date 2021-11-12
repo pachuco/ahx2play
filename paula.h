@@ -3,15 +3,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-// AUDIO DRIVERS
-#if defined AUDIODRIVER_SDL
-#include "audiodrivers/sdl/sdldriver.h"
-#elif defined AUDIODRIVER_WINMM
-#include "audiodrivers/winmm/winmm.h"
-#else
-// Read "audiodrivers/how_to_write_drivers.txt"
-#endif
-
 // main crystal oscillator for PAL Amiga systems
 #define AMIGA_PAL_XTAL_HZ 28375160
 

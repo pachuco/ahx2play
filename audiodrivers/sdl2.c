@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
-#include "sdldriver.h"
+#include "driver.h"
 
 static SDL_AudioDeviceID dev;
 static StreamCallback_t* funCallback;
