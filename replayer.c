@@ -1559,7 +1559,6 @@ bool ahxPlay(int32_t subSong)
 
 	audio.tickSampleCounter64 = 0; // 8bb: clear tick sample counter so that it will instantly initiate a tick
 
-	paulaClearFilterState();
 	resetCachedMixerPeriod();
 
 	ahx.dBPM = amigaCIAPeriod2Hz(tabler[ahx.song->SongCIAPeriodIndex]) * 2.5;

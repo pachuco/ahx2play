@@ -32,95 +32,6 @@ static double *dMixBufferL, *dMixBufferR, dSideFactor, dPeriodToDeltaDiv, dMixNo
 audio_t audio;
 paulaVoice_t paula[AMIGA_VOICES];
 
-/*
-** Math replacement
-*/
-#define MY_PI 3.14159265358979323846264338327950288
-#define MY_TWO_PI 6.28318530717958647692528676655900576
-
-static double my_sqrt(double x)
-{
-	double number = x;
-	double s = number / 2.5;
-
-	double old = 0.0;
-	while (s != old)
-	{
-		old = s;
-		s = (number / old + old) / 2.0;
-	}
- 
-	return s;
-}
-
-static double cosTaylorSeries(double x)
-{
-#define ITERATIONS 32 /* good enough... */
-
-	x = fmod(x, MY_TWO_PI);
-	if (x < 0.0)
-		x = -x;
-
-	double tmp = 1.0;
-	double sum = 1.0;
-
-	for (double i = 2.0; i <= ITERATIONS*2.0; i += 2.0)
-	{
-		tmp *= -(x*x) / (i * (i-1.0));
-		sum += tmp;
-	}
-
-	return sum;
-}
-
-static double my_cos(double x)
-{
-	return cosTaylorSeries(x);
-}
-
-// -----------------------------------------------
-// -----------------------------------------------
-
-/* 1-pole 6dB/oct high-pass RC filter, from:
-** https://www.musicdsp.org/en/latest/Filters/116-one-pole-lp-and-hp.html
-*/
-
-// adding this prevents denormalized numbers, which is slow
-#define DENORMAL_OFFSET 1e-20
-
-typedef struct rcFilter_t
-{
-	double tmp[2], c1, c2;
-} rcFilter_t;
-
-static rcFilter_t filterHiA1200;
-
-static void calcRCFilterCoeffs(double sr, double hz, rcFilter_t *f)
-{
-	const double a = (hz < sr/2.0) ? my_cos((MY_TWO_PI * hz) / sr) : 1.0;
-	const double b = 2.0 - a;
-	const double c = b - my_sqrt((b*b)-1.0);
-
-	f->c1 = 1.0 - c;
-	f->c2 = c;
-}
-
-static void clearRCFilterState(rcFilter_t *f)
-{
-	f->tmp[0] = f->tmp[1] = 0.0;
-}
-
-static void RCHighPassFilterStereo(rcFilter_t *f, const double *in, double *out)
-{
-	// left channel
-	f->tmp[0] = (f->c1*in[0] + f->c2*f->tmp[0]) + DENORMAL_OFFSET;
-	out[0] = in[0]-f->tmp[0];
-
-	// right channel
-	f->tmp[1] = (f->c1*in[1] + f->c2*f->tmp[1]) + DENORMAL_OFFSET;
-	out[1] = in[1]-f->tmp[1];
-}
-
 // -----------------------------------------------
 // -----------------------------------------------
 
@@ -518,8 +429,6 @@ void paulaMixSamples(int16_t *target, int32_t numSamples)
 			dMixBufferL[i] = 0.0;
 			dMixBufferR[i] = 0.0;
 
-			RCHighPassFilterStereo(&filterHiA1200, dOut, dOut);
-
 			double dL = dOut[0] * dMixNormalize;
 			double dR = dOut[1] * dMixNormalize;
 
@@ -543,8 +452,6 @@ void paulaMixSamples(int16_t *target, int32_t numSamples)
 
 			dMixBufferL[i] = 0.0;
 			dMixBufferR[i] = 0.0;
-
-			RCHighPassFilterStereo(&filterHiA1200, dOut, dOut);
 
 			double dL = dOut[0] * dMixNormalize;
 			double dR = dOut[1] * dMixNormalize;
@@ -609,22 +516,6 @@ void paulaOutputSamples(int16_t *stream, int32_t numSamples)
 	}
 }
 
-void paulaClearFilterState(void)
-{
-	clearRCFilterState(&filterHiA1200);
-}
-
-static void calculateFilterCoeffs(void)
-{
-	// Amiga 1200 1-pole (6dB/oct) static RC high-pass filter
-	double R = 1390.0; // R324 (1K ohm resistor) + R325 (390 ohm resistor)
-	double C = 2.2e-5; // C334 (22uF capacitor)
-	double fc = 1.0 / (MY_TWO_PI * R * C); // cutoff = ~5.20Hz
-	calcRCFilterCoeffs(audio.outputFreq, fc, &filterHiA1200);
-
-	paulaClearFilterState();
-}
-
 void paulaSetStereoSeparation(int32_t percentage) // 0..100 (percentage)
 {
 	audio.stereoSeparation = CLAMP(percentage, 0, 100);
@@ -674,8 +565,6 @@ bool paulaInit(int32_t audioFrequency)
 		paulaClose();
 		return false;
 	}
-
-	calculateFilterCoeffs();
 
 	amigaSetCIAPeriod(AHX_DEFAULT_CIA_PERIOD);
 	audio.tickSampleCounter64 = 0; // clear tick sample counter so that it will instantly initiate a tick
