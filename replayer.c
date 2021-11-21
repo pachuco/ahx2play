@@ -1561,7 +1561,6 @@ bool ahxPlay(int32_t subSong)
 
 	paulaClearFilterState();
 	resetCachedMixerPeriod();
-	resetAudioDithering();
 
 	ahx.dBPM = amigaCIAPeriod2Hz(tabler[ahx.song->SongCIAPeriodIndex]) * 2.5;
 

@@ -24,11 +24,9 @@
 #define MAX_SAMPLE_LENGTH (0x280/2) /* in words. AHX buffer size */
 #define NORM_FACTOR 1.5 /* can clip from high-pass filter overshoot */
 #define STEREO_NORM_FACTOR 0.5 /* cumulative mid/side normalization factor (1/sqrt(2))*(1/sqrt(2)) */
-#define INITIAL_DITHER_SEED 0x12345000
 
 static int8_t emptySample[MAX_SAMPLE_LENGTH*2];
-static int32_t randSeed = INITIAL_DITHER_SEED;
-static double *dMixBufferL, *dMixBufferR, dPrngStateL, dPrngStateR, dSideFactor, dPeriodToDeltaDiv, dMixNormalize;
+static double *dMixBufferL, *dMixBufferR, dSideFactor, dPeriodToDeltaDiv, dMixNormalize;
 
 // globalized
 audio_t audio;
@@ -500,25 +498,10 @@ static void mixChannels(int32_t numSamples)
 	}
 }
 
-void resetAudioDithering(void)
-{
-	randSeed = INITIAL_DITHER_SEED;
-	dPrngStateL = 0.0;
-	dPrngStateR = 0.0;
-}
-
-static inline int32_t random32(void)
-{
-	// LCG random 32-bit generator (quite good and fast)
-	randSeed *= 134775813;
-	randSeed++;
-	return randSeed;
-}
-
 void paulaMixSamples(int16_t *target, int32_t numSamples)
 {
 	int32_t smp32;
-	double dOut[2], dPrng;
+	double dOut[2];
 
 	mixChannels(numSamples);
 
@@ -540,18 +523,12 @@ void paulaMixSamples(int16_t *target, int32_t numSamples)
 			double dL = dOut[0] * dMixNormalize;
 			double dR = dOut[1] * dMixNormalize;
 
-			// left channel - 1-bit triangular dithering (high-pass filtered)
-			dPrng = random32() * (0.5 / INT32_MAX); // -0.5 .. 0.5
-			dL = (dL + dPrng) - dPrngStateL;
-			dPrngStateL = dPrng;
+			// left channel
 			smp32 = (int32_t)dL;
 			CLAMP16(smp32);
 			*target++ = (int16_t)smp32;
 
-			// right channel - 1-bit triangular dithering (high-pass filtered)
-			dPrng = random32() * (0.5 / INT32_MAX); // -0.5 .. 0.5
-			dR = (dR + dPrng) - dPrngStateR;
-			dPrngStateR = dPrng;
+			// right channel
 			smp32 = (int32_t)dR;
 			CLAMP16(smp32);
 			*target++ = (int16_t)smp32;
@@ -582,17 +559,11 @@ void paulaMixSamples(int16_t *target, int32_t numSamples)
 			// -----------------------
 
 			// left channel
-			dPrng = random32() * (0.5 / INT32_MAX);
-			dL = (dL + dPrng) - dPrngStateL;
-			dPrngStateL = dPrng;
 			smp32 = (int32_t)dL;
 			CLAMP16(smp32);
 			*target++ = (int16_t)smp32;
 
 			// right channel
-			dPrng = random32() * (0.5 / INT32_MAX);
-			dR = (dR + dPrng) - dPrngStateR;
-			dPrngStateR = dPrng;
 			smp32 = (int32_t)dR;
 			CLAMP16(smp32);
 			*target++ = (int16_t)smp32;
@@ -709,7 +680,6 @@ bool paulaInit(int32_t audioFrequency)
 	amigaSetCIAPeriod(AHX_DEFAULT_CIA_PERIOD);
 	audio.tickSampleCounter64 = 0; // clear tick sample counter so that it will instantly initiate a tick
 
-	resetAudioDithering();
 	resetCachedMixerPeriod();
 	return true;
 }
