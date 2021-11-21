@@ -1583,28 +1583,6 @@ void ahxStop(void)
 	unlockMixer();
 }
 
-/***************************************************************************
- *        WAV DUMPING ROUTINES                                             *
- ***************************************************************************/
-
-static int32_t ahxGetFrame(int16_t *streamOut) // 8bb: returns bytes mixed
-{
-	if (audio.tickSampleCounter64 <= 0) // 8bb: new replayer tick
-	{
-		SIDInterrupt();
-		audio.tickSampleCounter64 += audio.samplesPerTick64;
-	}
-
-	const int32_t samplesToMix = (audio.tickSampleCounter64 + UINT32_MAX) >> 32; // 8bb: ceil (rounded upwards)
-
-	paulaMixSamples(streamOut, samplesToMix);
-	streamOut += samplesToMix * 2;
-
-	audio.tickSampleCounter64 -= (int64_t)samplesToMix << 32;
-
-	return samplesToMix * 2 * sizeof (short);
-}
-
 int32_t ahxGetErrorCode(void)
 {
 	return ahxErrCode;
