@@ -38,12 +38,9 @@ typedef struct voice_t
 
 	double dDelta, dPhase;
 
-	// for BLEP synthesis
-	double dLastDelta, dLastPhase, dBlepOffset, dDeltaMul;
-
 	// period cache
 	int32_t oldPeriod;
-	double dOldVoiceDelta, dOldVoiceDeltaMul;
+	double dOldVoiceDelta;
 } paulaVoice_t;
 
 void paulaClearFilterState(void);
