@@ -345,29 +345,19 @@ static void ahxQuietAudios(void)
 
 static void CopyWaveformToPaulaBuffer(plyVoiceTemp_t *ch) // 8bb: I put this code in an own function
 {
-	// 8bb: audioPointer and audioSource buffers are dword-aligned, 32-bit access is safe
 	uint32_t *dst32 = (uint32_t *)ch->audioPointer;
 
 	if (ch->Waveform == 4-1) // 8bb: noise, copy in one go
 	{
-		const uint32_t *src32 = (const uint32_t *)ch->audioSource;
-		for (int32_t i = 0; i < 0x280/8; i++)
-		{
-			*dst32++ = *src32++;
-			*dst32++ = *src32++;
-		}
+        memcpy(ch->audioPointer, ch->audioSource, 0x280);
 	}
 	else
 	{
-		const int32_t length = (1 << (5 - ch->Wavelength)) * 5;
-		const int32_t copyLength = 1 << ch->Wavelength;
+		const int32_t waveLoops = (1 << (5 - ch->Wavelength)) * 5;
+		const int32_t copyLength = (1 << ch->Wavelength) * 4;
 
-		for (int32_t i = 0; i < length; i++)
-		{
-			const uint32_t *src32 = (const uint32_t *)ch->audioSource;
-			for (int32_t j = 0; j < copyLength; j++)
-				*dst32++ = *src32++;
-		}
+		for (int32_t i = 0; i < waveLoops; i++)
+            memcpy(ch->audioPointer + (i * copyLength), ch->audioSource, copyLength);
 	}
 }
 
