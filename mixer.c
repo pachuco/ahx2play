@@ -16,7 +16,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
-#include "paula.h" // AMIGA_VOICES
+#include "mixer.h" // AMIGA_VOICES
 #include <math.h> // ceil()
 #include "replayer.h" // SIDInterrupt(), AHX_LOWEST_CIA_PERIOD, AHX_DEFAULT_CIA_PERIOD
 #include "audiodrivers/driver.h" // Read "audiodrivers/how_to_write_drivers.txt"

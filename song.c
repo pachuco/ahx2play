@@ -12,7 +12,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "replayer.h"
-#include "paula.h"
 
 #define SWAP16(x) \
 ( \

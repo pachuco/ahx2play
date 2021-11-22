@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "paula.h"
+#include "mixer.h"
 
 enum
 {
