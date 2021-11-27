@@ -25,6 +25,9 @@
 #define NORM_FACTOR 1.5 /* can clip from high-pass filter overshoot */
 #define STEREO_NORM_FACTOR 0.5 /* cumulative mid/side normalization factor (1/sqrt(2))*(1/sqrt(2)) */
 
+#define TEMPBUFSIZE 256
+#define OVERSAMP_FACTOR 4
+
 static int8_t emptySample[MAX_SAMPLE_LENGTH*2];
 static double dSideFactor, dPeriodToDeltaDiv, dMixNormalize;
 
@@ -73,7 +76,7 @@ void paulaSetPeriod(int32_t ch, uint16_t period)
 		v->oldPeriod = realPeriod;
 
 		// this period is not cached, calculate mixer deltas
-		v->dOldVoiceDelta = dPeriodToDeltaDiv / realPeriod;
+		v->dOldVoiceDelta = dPeriodToDeltaDiv / realPeriod / OVERSAMP_FACTOR;
 	}
 
 	v->AUD_PER_delta = v->dOldVoiceDelta;
@@ -195,47 +198,52 @@ static void mixChannels(int32_t numSamples, double *dMixBufferL, double *dMixBuf
 		double *dMixBuf = dMixBufSelect[i]; // what output channel to mix into (L, R, R, L)
 		for (int32_t j = 0; j < numSamples; j++)
 		{
-			dMixBuf[j] += v->dSample;
+            double smp = 0.0;
+            
+            for (int32_t k = 0; k < OVERSAMP_FACTOR; k++)
+            {
+                smp += v->dSample;
 
-			v->dPhase += v->dDelta;
-			if (v->dPhase >= 1.0) // next sample point
-			{
-				v->dPhase -= 1.0; // we use single-step deltas (< 1.0), so this is safe
+                v->dPhase += v->dDelta;
+                if (v->dPhase >= 1.0) // next sample point
+                {
+                    v->dPhase -= 1.0; // we use single-step deltas (< 1.0), so this is safe
 
-				v->dDelta = v->AUD_PER_delta; // Paula only updates period (delta) during sample fetching
+                    v->dDelta = v->AUD_PER_delta; // Paula only updates period (delta) during sample fetching
 
-				if (v->sampleCounter == 0)
-				{
-					// it's time to read new samples from DMA
+                    if (v->sampleCounter == 0)
+                    {
+                        // it's time to read new samples from DMA
 
-					if (--v->lengthCounter == 0)
-					{
-						v->lengthCounter = v->AUD_LEN;
-						v->location = v->AUD_LC;
-					}
+                        if (--v->lengthCounter == 0)
+                        {
+                            v->lengthCounter = v->AUD_LEN;
+                            v->location = v->AUD_LC;
+                        }
 
-					// fill DMA data buffer
-					v->AUD_DAT[0] = *v->location++;
-					v->AUD_DAT[1] = *v->location++;
-					v->sampleCounter = 2;
-				}
+                        // fill DMA data buffer
+                        v->AUD_DAT[0] = *v->location++;
+                        v->AUD_DAT[1] = *v->location++;
+                        v->sampleCounter = 2;
+                    }
 
-				/* Pre-compute current sample point.
-				** Output volume is only read from AUD_VOL at this stage,
-				** and we don't emulate volume PWM anyway, so we can
-				** pre-multiply by volume at this point.
-				*/
-				v->dSample = v->AUD_DAT[0] * v->AUD_VOL; // -128 .. 127 -> -1.0 .. ~0.99
+                    /* Pre-compute current sample point.
+                    ** Output volume is only read from AUD_VOL at this stage,
+                    ** and we don't emulate volume PWM anyway, so we can
+                    ** pre-multiply by volume at this point.
+                    */
+                    v->dSample = v->AUD_DAT[0] * v->AUD_VOL; // -128 .. 127 -> -1.0 .. ~0.99
 
-				// progress AUD_DAT buffer
-				v->AUD_DAT[0] = v->AUD_DAT[1];
-				v->sampleCounter--;
-			}
+                    // progress AUD_DAT buffer
+                    v->AUD_DAT[0] = v->AUD_DAT[1];
+                    v->sampleCounter--;
+                }
+            }
+            dMixBuf[j] += (smp / OVERSAMP_FACTOR);
 		}
 	}
 }
 
-#define TEMPBUFSIZE 128
 static void paulaMixSamples(int16_t *target, int32_t numSamples)
 {
 	double dOut[2];
