@@ -14,33 +14,33 @@
 
 typedef struct audio_t
 {
-	volatile bool playing, pause;
-	int32_t outputFreq, masterVol, stereoSeparation;
-	int64_t tickSampleCounter64, samplesPerTick64;
+    volatile bool playing, pause;
+    int32_t outputFreq, masterVol, stereoSeparation;
+    int64_t tickSampleCounter64, samplesPerTick64;
 } audio_t;
 
 typedef struct voice_t
 {
-	volatile bool DMA_active;
+    volatile bool DMA_active;
 
-	// internal values (don't modify directly!)
-	int8_t AUD_DAT[2]; // DMA data buffer
-	const int8_t *location; // current location
-	uint16_t lengthCounter; // current length
-	int32_t sampleCounter; // how many bytes left in AUD_DAT
-	double dSample; // current sample point
+    // internal values (don't modify directly!)
+    int8_t AUD_DAT[2]; // DMA data buffer
+    const int8_t *location; // current location
+    uint16_t lengthCounter; // current length
+    int32_t sampleCounter; // how many bytes left in AUD_DAT
+    double dSample; // current sample point
 
-	// registers modified by Paula functions
-	const int8_t *AUD_LC; // location
-	uint16_t AUD_LEN; // length (in words)
-	double AUD_PER_delta; // delta
-	double AUD_VOL; // volume
+    // registers modified by Paula functions
+    const int8_t *AUD_LC; // location
+    uint16_t AUD_LEN; // length (in words)
+    double AUD_PER_delta; // delta
+    double AUD_VOL; // volume
 
-	double dDelta, dPhase;
+    double dDelta, dPhase;
 
-	// period cache
-	int32_t oldPeriod;
-	double dOldVoiceDelta;
+    // period cache
+    int32_t oldPeriod;
+    double dOldVoiceDelta;
 } paulaVoice_t;
 
 void paulaClearFilterState(void);
