@@ -26,7 +26,7 @@
 #define STEREO_NORM_FACTOR 0.5 /* cumulative mid/side normalization factor (1/sqrt(2))*(1/sqrt(2)) */
 
 static int8_t emptySample[MAX_SAMPLE_LENGTH*2];
-static double *dMixBufferL, *dMixBufferR, dSideFactor, dPeriodToDeltaDiv, dMixNormalize;
+static double dSideFactor, dPeriodToDeltaDiv, dMixNormalize;
 
 // globalized
 audio_t audio;
@@ -181,7 +181,7 @@ void paulaStartAllDMAs(void)
 	unlockMixer();
 }
 
-static void mixChannels(int32_t numSamples)
+static void mixChannels(int32_t numSamples, double *dMixBufferL, double *dMixBufferR)
 {
 	double *dMixBufSelect[AMIGA_VOICES] = { dMixBufferL, dMixBufferR, dMixBufferR, dMixBufferL };
 
@@ -235,73 +235,75 @@ static void mixChannels(int32_t numSamples)
 	}
 }
 
-void paulaMixSamples(int16_t *target, int32_t numSamples)
+#define TEMPBUFSIZE 128
+static void paulaMixSamples(int16_t *target, int32_t numSamples)
 {
-	int32_t smp32;
 	double dOut[2];
+	int32_t smp32;
+    
+    while (numSamples != 0)
+    {
+        double dMixBufferL[TEMPBUFSIZE] = {0};
+        double dMixBufferR[TEMPBUFSIZE] = {0};
+        int32_t numSamplesTodo = MIN(numSamples, TEMPBUFSIZE);
+        
+        mixChannels(numSamplesTodo, dMixBufferL, dMixBufferR);
+        numSamples -= numSamplesTodo;
 
-	mixChannels(numSamples);
+        // apply filter, normalize, adjust stereo separation (if needed), dither and quantize
+        
+        if (audio.stereoSeparation == 100) // Amiga panning (no stereo separation)
+        {
+            for (int32_t i = 0; i < numSamplesTodo; i++)
+            {
+                dOut[0] = dMixBufferL[i];
+                dOut[1] = dMixBufferR[i];
 
-	// apply filter, normalize, adjust stereo separation (if needed), dither and quantize
-	
-	if (audio.stereoSeparation == 100) // Amiga panning (no stereo separation)
-	{
-		for (int32_t i = 0; i < numSamples; i++)
-		{
-			dOut[0] = dMixBufferL[i];
-			dOut[1] = dMixBufferR[i];
+                double dL = dOut[0] * dMixNormalize;
+                double dR = dOut[1] * dMixNormalize;
 
-			// clear what we read
-			dMixBufferL[i] = 0.0;
-			dMixBufferR[i] = 0.0;
+                // left channel
+                smp32 = (int32_t)dL;
+                CLAMP16(smp32);
+                *target++ = (int16_t)smp32;
 
-			double dL = dOut[0] * dMixNormalize;
-			double dR = dOut[1] * dMixNormalize;
+                // right channel
+                smp32 = (int32_t)dR;
+                CLAMP16(smp32);
+                *target++ = (int16_t)smp32;
+            }
+        }
+        else
+        {
+            for (int32_t i = 0; i < numSamplesTodo; i++)
+            {
+                dOut[0] = dMixBufferL[i];
+                dOut[1] = dMixBufferR[i];
 
-			// left channel
-			smp32 = (int32_t)dL;
-			CLAMP16(smp32);
-			*target++ = (int16_t)smp32;
+                double dL = dOut[0] * dMixNormalize;
+                double dR = dOut[1] * dMixNormalize;
 
-			// right channel
-			smp32 = (int32_t)dR;
-			CLAMP16(smp32);
-			*target++ = (int16_t)smp32;
-		}
-	}
-	else
-	{
-		for (int32_t i = 0; i < numSamples; i++)
-		{
-			dOut[0] = dMixBufferL[i];
-			dOut[1] = dMixBufferR[i];
+                // apply stereo separation
+                const double dOldL = dL;
+                const double dOldR = dR;
+                double dMid  = (dOldL + dOldR) * STEREO_NORM_FACTOR;
+                double dSide = (dOldL - dOldR) * dSideFactor;
+                dL = dMid + dSide;
+                dR = dMid - dSide;
+                // -----------------------
 
-			dMixBufferL[i] = 0.0;
-			dMixBufferR[i] = 0.0;
+                // left channel
+                smp32 = (int32_t)dL;
+                CLAMP16(smp32);
+                *target++ = (int16_t)smp32;
 
-			double dL = dOut[0] * dMixNormalize;
-			double dR = dOut[1] * dMixNormalize;
-
-			// apply stereo separation
-			const double dOldL = dL;
-			const double dOldR = dR;
-			double dMid  = (dOldL + dOldR) * STEREO_NORM_FACTOR;
-			double dSide = (dOldL - dOldR) * dSideFactor;
-			dL = dMid + dSide;
-			dR = dMid - dSide;
-			// -----------------------
-
-			// left channel
-			smp32 = (int32_t)dL;
-			CLAMP16(smp32);
-			*target++ = (int16_t)smp32;
-
-			// right channel
-			smp32 = (int32_t)dR;
-			CLAMP16(smp32);
-			*target++ = (int16_t)smp32;
-		}
-	}
+                // right channel
+                smp32 = (int32_t)dR;
+                CLAMP16(smp32);
+                *target++ = (int16_t)smp32;
+            }
+        }
+    }
 }
 
 void paulaTogglePause(void)
@@ -379,19 +381,6 @@ bool paulaInit(int32_t audioFrequency)
 
 	dPeriodToDeltaDiv = (double)PAULA_PAL_CLK / audio.outputFreq;
 
-	int32_t maxSamplesToMix = (int32_t)ceil(audio.outputFreq / amigaCIAPeriod2Hz(AHX_HIGHEST_CIA_PERIOD));
-
-	const int32_t bufferBytes = maxSamplesToMix * sizeof (double);
-
-	dMixBufferL = (double *)calloc(1, bufferBytes);
-	dMixBufferR = (double *)calloc(1, bufferBytes);
-
-	if (dMixBufferL == NULL || dMixBufferR == NULL)
-	{
-		paulaClose();
-		return false;
-	}
-
 	amigaSetCIAPeriod(AHX_DEFAULT_CIA_PERIOD);
 	audio.tickSampleCounter64 = 0; // clear tick sample counter so that it will instantly initiate a tick
 
@@ -401,15 +390,4 @@ bool paulaInit(int32_t audioFrequency)
 
 void paulaClose(void)
 {
-	if (dMixBufferL != NULL)
-	{
-		free(dMixBufferL);
-		dMixBufferL = NULL;
-	}
-
-	if (dMixBufferR != NULL)
-	{
-		free(dMixBufferR);
-		dMixBufferR = NULL;
-	}
 }

@@ -50,7 +50,6 @@ void resetAudioDithering(void);
 double amigaCIAPeriod2Hz(uint16_t period);
 bool amigaSetCIAPeriod(uint16_t period); // replayer ticker speed
 
-void paulaMixSamples(int16_t *target, int32_t numSamples);
 bool paulaInit(int32_t audioFrequency);
 void paulaClose(void);
 

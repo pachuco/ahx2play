@@ -23,6 +23,7 @@ enum
 
 #define CLAMP16(i) if ((int16_t)(i) != i) i = 0x7FFF ^ (i >> 31)
 #define CLAMP(x, low, high) (((x) > (high)) ? (high) : (((x) < (low)) ? (low) : (x)))
+#define MIN(x, y) (x < y ? x : y)
 
 #define SWAP16(x) \
 ( \
