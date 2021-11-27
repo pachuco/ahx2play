@@ -325,7 +325,7 @@ static void SetUpAudioChannels(void) // 8bb: only call this while mixer is locke
 
 static void InitVoiceXTemp(plyVoiceTemp_t *ch) // 8bb: only call this while mixer is locked!
 {
-	int8_t *oldAudioPointer = ch->audioPointer;
+	//int8_t *oldAudioPointer = ch->audioPointer;
 
 	memset(ch, 0, sizeof (plyVoiceTemp_t));
 
@@ -334,7 +334,7 @@ static void InitVoiceXTemp(plyVoiceTemp_t *ch) // 8bb: only call this while mixe
 	ch->squareLowerLimit = 1;
 	ch->squareUpperLimit = 63;
 
-	ch->audioPointer = oldAudioPointer;
+	//ch->audioPointer = oldAudioPointer;
 }
 
 static void ahxQuietAudios(void)
