@@ -3,9 +3,8 @@ call getcomp.bat gcc9
 
 
 set opts=-std=c99 -mconsole -Wall -Wextra -g
-set opts=-std=c99 -mconsole -Wall -Wextra -Os -s
+set opts=-std=c99 -mconsole -Wall -Wextra -O3 -s
 set opts=%opts% -Wl,--enable-stdcall-fixup -static-libgcc
-set opts=%opts% -DAUDIODRIVER_WINMM
 set linkinc=-lwinmm
 
 set files=.\ahx2play\ahx2play.c .\ahx2play\posix.c
