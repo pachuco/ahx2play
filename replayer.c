@@ -218,7 +218,7 @@ void ahxInitWaves(void) // 8bb: this generates bit-accurate AHX 2.3d-sp3 wavefor
     setUpFilterWaveForms(waves.highPasses, waves.lowPasses, waves.triangle04);
     isInitWaveforms = true;
     
-    assert(crc32b(&waves, 410760) == 0x40EEB1B9);
+    assert(crc32b((uint8_t *)&waves, 410760) == 0x40EEB1B9);
 }
 //---------------------------------------------------------------------------------------------------------------
 
@@ -345,8 +345,6 @@ static void ahxQuietAudios(void)
 
 static void CopyWaveformToPaulaBuffer(plyVoiceTemp_t *ch) // 8bb: I put this code in an own function
 {
-    uint32_t *dst32 = (uint32_t *)ch->audioPointer;
-
     if (ch->Waveform == 4-1) // 8bb: noise, copy in one go
     {
         memcpy(ch->audioPointer, ch->audioSource, 0x280);
