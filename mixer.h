@@ -28,19 +28,18 @@ typedef struct voice_t
     const int8_t *location; // current location
     uint16_t lengthCounter; // current length
     int32_t sampleCounter; // how many bytes left in AUD_DAT
-    double dSample; // current sample point
+    int32_t sample; // current sample point
 
     // registers modified by Paula functions
     const int8_t *AUD_LC; // location
     uint16_t AUD_LEN; // length (in words)
-    double AUD_PER_delta; // delta
-    double AUD_VOL; // volume
+    uint64_t AUD_PER_delta; // delta
+    int32_t AUD_VOL; // volume
 
-    double dDelta, dPhase;
+    uint64_t delta, oldVoiceDelta, phase;
 
     // period cache
     int32_t oldPeriod;
-    double dOldVoiceDelta;
 } paulaVoice_t;
 
 void paulaClearFilterState(void);
