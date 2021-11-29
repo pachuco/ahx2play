@@ -1395,34 +1395,26 @@ void SIDInterrupt(void)
 
 void ahxNextPattern(void)
 {
-    lockMixer();
-
     if (ahx.PosNr+1 < ahx.song->LenNr)
     {
         ahx.PosJump = ahx.PosNr + 1;
         ahx.PatternBreak = true;
         audio.tickSampleCounter64 = 0; // 8bb: clear tick sample counter so that it will instantly initiate a tick
     }
-
-    unlockMixer();
 }
 
 void ahxPrevPattern(void)
 {
-    lockMixer();
-
     if (ahx.PosNr > 0)
     {
         ahx.PosJump = ahx.PosNr - 1;
         ahx.PatternBreak = true;
         audio.tickSampleCounter64 = 0; // 8bb: clear tick sample counter so that it will instantly initiate a tick
     }
-
-    unlockMixer();
 }
 
 // 8bb: masterVol = 0..256 (default = 256), stereoSeparation = 0..100 (percentage, default = 20)
-bool ahxInit(int32_t audioFreq, int32_t audioBufferSize, int32_t masterVol, int32_t stereoSeparation)
+bool ahxInit(int32_t audioFreq, int32_t masterVol, int32_t stereoSeparation)
 {
     ahxErrCode = ERR_SUCCESS;
     
@@ -1431,13 +1423,6 @@ bool ahxInit(int32_t audioFreq, int32_t audioBufferSize, int32_t masterVol, int3
 
     paulaSetStereoSeparation(stereoSeparation);
     paulaSetMasterVolume(masterVol);
-
-    if (!openMixer(audioFreq, audioBufferSize, paulaOutputSamples))
-    {
-        closeMixer();
-        ahxErrCode = ERR_AUDIO_DEVICE;
-        return false;
-    }
 
     return true;
 }
@@ -1474,7 +1459,7 @@ void ahxUnloadSong(void)
 
 void ahxClose(void)
 {
-    closeMixer();
+    //////////////////////////////////////////////////////////////////////////////
 }
 
 bool ahxPlay(int32_t subSong)
@@ -1492,9 +1477,7 @@ bool ahxPlay(int32_t subSong)
         ahxErrCode = ERR_NO_WAVES;
         return false; // 8bb: waves not set up!
     }
-
-    lockMixer();
-
+    
     ahx.Subsong = 0;
     ahx.PosNr = 0;
     if (subSong > 0 && ahx.song->Subsongs > 0)
@@ -1541,23 +1524,17 @@ bool ahxPlay(int32_t subSong)
     ahx.dBPM = amigaCIAPeriod2Hz(tabler[ahx.song->SongCIAPeriodIndex]) * 2.5;
 
     ahx.WNRandom = 0; // 8bb: Clear RNG seed (AHX doesn't do this)
-    
-    unlockMixer();
 
     return true;
 }
 
 void ahxStop(void)
 {
-    lockMixer();
-
     ahx.intPlaying = false;
     ahxQuietAudios();
 
     for (int32_t i = 0; i < AMIGA_VOICES; i++)
         InitVoiceXTemp(&ahx.pvt[i]);
-
-    unlockMixer();
 }
 
 int32_t ahxGetErrorCode(void)

@@ -19,7 +19,6 @@
 #include "mixer.h" // AMIGA_VOICES
 #include <math.h> // ceil(), round() etc
 #include "replayer.h" // SIDInterrupt(), AHX_LOWEST_CIA_PERIOD, AHX_DEFAULT_CIA_PERIOD
-#include "audiodrivers/driver.h" // Read "audiodrivers/how_to_write_drivers.txt"
 
 #define MAX_SAMPLE_LENGTH (0x280/2) /* in words. AHX buffer size */
 #define NORM_FACTOR 1.5 /* can clip from high-pass filter overshoot */
@@ -124,8 +123,6 @@ void paulaSetData(int32_t ch, const int8_t *src)
 
 void paulaStopAllDMAs(void)
 {
-    lockMixer();
-
     paulaVoice_t *v = paula;
     for (int32_t i = 0; i < AMIGA_VOICES; i++, v++)
     {
@@ -133,15 +130,11 @@ void paulaStopAllDMAs(void)
         v->location = v->AUD_LC = emptySample;
         v->lengthCounter = v->AUD_LEN = 1;
     }
-
-    unlockMixer();
 }
 
 void paulaStartAllDMAs(void)
 {
     paulaVoice_t *v;
-
-    lockMixer();
 
     v = paula;
     for (int32_t i = 0; i < AMIGA_VOICES; i++, v++)
@@ -180,8 +173,6 @@ void paulaStartAllDMAs(void)
 
         v->DMA_active = true;
     }
-
-    unlockMixer();
 }
 
 static void paulaMixSamples(int32_t *mixL, int32_t *mixR, int32_t numSamples)
@@ -359,5 +350,4 @@ void paulaInit(int32_t audioFrequency)
     audio.tickSampleCounter64 = 0; // clear tick sample counter so that it will instantly initiate a tick
 
     resetCachedMixerPeriod();
-    return true;
 }

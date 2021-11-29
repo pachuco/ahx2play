@@ -3,7 +3,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "mixer.h"
-#include "audiodrivers/driver.h"
 
 enum
 {
@@ -237,7 +236,7 @@ void ahxNextPattern(void);
 void ahxPrevPattern(void);
 
 // 8bb: masterVol = 0..256 (default = 256), stereoSeparation = 0..100 (percentage, default = 20)
-bool ahxInit(int32_t audioFreq, int32_t audioBufferSize, int32_t masterVol, int32_t stereoSeparation);
+bool ahxInit(int32_t audioFreq, int32_t masterVol, int32_t stereoSeparation);
 
 bool ahxLoadSong(song_t* pSong);
 void ahxUnloadSong(void);

@@ -10,6 +10,9 @@
 #include <stdlib.h>
 #include "../replayer.h"
 #include "posix.h"
+#include "driver.h"
+
+#define AUDSYNC(X) {lockMixer();(X);unlockMixer();}
 
 // defaults when not overriden by argument switches
 #define DEFAULT_AUDIO_FREQ 48000
@@ -90,7 +93,7 @@ int main(int argc, char *argv[])
         return renderToWav();
 
     // Initialize AHX system
-    if (!ahxInit(audioFrequency, audioBufferSize, masterVolume, stereoSeparation))
+    if (!ahxInit(audioFrequency, masterVolume, stereoSeparation))
     {
         ahxClose();
 
@@ -143,7 +146,10 @@ int main(int argc, char *argv[])
     }
 
     // Play song (start at song #0)
-    if (!ahxPlay(0))
+    lockMixer();
+    bool canPlay = ahxPlay(0);
+    unlockMixer();
+    if (!canPlay)
     {
         ahxFreeSong(song);
         ahxClose();
@@ -162,6 +168,14 @@ int main(int argc, char *argv[])
             break;
 
         }
+        
+        return 1;
+    }
+    if (!openMixer(audioFrequency, audioBufferSize, paulaOutputSamples))
+    {
+        closeMixer();
+        printf("Error opening mixer!\n");
+        return 1;
     }
 
     // trap sigterm on Linux/macOS (since we need to properly revert the terminal)
@@ -222,8 +236,8 @@ int main(int argc, char *argv[])
     revertTerminal();
 #endif
     showTextCursor();
-
-    ahxUnloadSong();
+    
+    AUDSYNC(ahxUnloadSong());
     // Free loaded song
     ahxFreeSong(song);
     // Close AHX system
@@ -315,7 +329,7 @@ static void readKeyboard(void)
             break;
 
             case 'r': // restart
-                ahxPlay(0);
+                AUDSYNC(ahxPlay(0));
             break;
 
             case 'n': // next sub-song
@@ -323,7 +337,7 @@ static void readKeyboard(void)
                 if (ahx.song->Subsongs > 0)
                 {
                     if (ahx.Subsong < ahx.song->Subsongs)
-                        ahxPlay(ahx.Subsong + 1);
+                        AUDSYNC(ahxPlay(ahx.Subsong + 1));
                 }
             }
             break;
@@ -333,7 +347,7 @@ static void readKeyboard(void)
                 if (ahx.song->Subsongs > 0)
                 {
                     if (ahx.Subsong > 0)
-                        ahxPlay(ahx.Subsong - 1);
+                        AUDSYNC(ahxPlay(ahx.Subsong - 1));
                 }
             }
             break;
@@ -352,11 +366,11 @@ static void readKeyboard(void)
             break;
 
             case 0x2B: // numpad + (next song position)
-                ahxNextPattern();
+                AUDSYNC(ahxNextPattern());
             break;
 
             case 0x2D: // numpad - (previous song position)
-                ahxPrevPattern();
+                AUDSYNC(ahxPrevPattern());
             break;
             
             default: break;

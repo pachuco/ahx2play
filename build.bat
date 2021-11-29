@@ -7,8 +7,7 @@ set opts=-std=c99 -mconsole -Wall -Wextra -O3 -s
 set opts=%opts% -Wl,--enable-stdcall-fixup -static-libgcc
 set linkinc=-lwinmm
 
-set files=.\ahx2play\ahx2play.c .\ahx2play\posix.c
-set files=%files% .\audiodrivers\winmm.c
+set files=.\ahx2play\ahx2play.c .\ahx2play\posix.c .\ahx2play\driver_winmm.c
 set files=%files% .\replayer.c .\song.c .\mixer.c
 set errlog=.\ahx2play_err.log
 set out=C:\p_files\prog\_proj\CodeCocks\Hively_Replayer\ahx2play.exe
