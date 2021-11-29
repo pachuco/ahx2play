@@ -299,10 +299,6 @@ uint8_t ahxErrCode;
 
 // ------------
 
-// 8bb: loader.c
-void ahxInitWaves(void);
-// -----------
-
 static void SetUpAudioChannels(void) // 8bb: only call this while mixer is locked!
 {
     plyVoiceTemp_t *ch;
@@ -1431,12 +1427,7 @@ bool ahxInit(int32_t audioFreq, int32_t audioBufferSize, int32_t masterVol, int3
     ahxErrCode = ERR_SUCCESS;
     
     ahxInitWaves();
-    if (!paulaInit(audioFreq))
-    {
-        paulaClose();
-        ahxErrCode = ERR_OUT_OF_MEMORY;
-        return false;
-    }
+    paulaInit(audioFreq);
 
     paulaSetStereoSeparation(stereoSeparation);
     paulaSetMasterVolume(masterVol);
@@ -1444,7 +1435,6 @@ bool ahxInit(int32_t audioFreq, int32_t audioBufferSize, int32_t masterVol, int3
     if (!openMixer(audioFreq, audioBufferSize, paulaOutputSamples))
     {
         closeMixer();
-        paulaClose();
         ahxErrCode = ERR_AUDIO_DEVICE;
         return false;
     }
@@ -1485,7 +1475,6 @@ void ahxUnloadSong(void)
 void ahxClose(void)
 {
     closeMixer();
-    paulaClose();
 }
 
 bool ahxPlay(int32_t subSong)

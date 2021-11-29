@@ -294,7 +294,7 @@ void paulaOutputSamples(int16_t *stream, int32_t numSamples)
         
         if (audio.tickSampleCounter64 <= 0) // new replayer tick
         {
-            SIDInterrupt(); // replayer.c
+            SIDInterrupt();
             audio.tickSampleCounter64 += audio.samplesPerTick64;
         }
 
@@ -344,7 +344,7 @@ bool amigaSetCIAPeriod(uint16_t period) // replayer ticker
     return true;
 }
 
-bool paulaInit(int32_t audioFrequency)
+void paulaInit(int32_t audioFrequency)
 {
     audio.outputFreq = audioFrequency;
 
@@ -360,8 +360,4 @@ bool paulaInit(int32_t audioFrequency)
 
     resetCachedMixerPeriod();
     return true;
-}
-
-void paulaClose(void)
-{
 }
