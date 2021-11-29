@@ -26,10 +26,11 @@
 #define STEREO_NORM_FACTOR 0.5 /* cumulative mid/side normalization factor (1/sqrt(2))*(1/sqrt(2)) */
 
 #define TEMPBUFSIZE 512
-#define OVERSAMP_FACTOR 6
+#define OVERSAMP_FACTOR 1024
 
 static int8_t emptySample[MAX_SAMPLE_LENGTH*2];
 static double dSideFactor, dPeriodToDeltaDiv, dMixNormalize;
+static int32_t avgSmpMul;
 
 // globalized
 audio_t audio;
@@ -183,121 +184,111 @@ void paulaStartAllDMAs(void)
     unlockMixer();
 }
 
-static void paulaMixSamples(int16_t *target, int32_t numSamples, int32_t oversampFactor)
+static void paulaMixSamples(int32_t *mixL, int32_t *mixR, int32_t numSamples)
 {
-    int32_t avgSmpMul = (int32_t)fmin(round((UINT32_MAX + 1.0) / (double)oversampFactor), INT32_MAX);
+    int32_t *mixBufSelect[AMIGA_VOICES] = { mixL, mixR, mixR, mixL };
+    paulaVoice_t *v = paula;
     
-    while (numSamples != 0)
+    for (int32_t i = 0; i < AMIGA_VOICES; i++, v++)
     {
-        int32_t mixL[TEMPBUFSIZE] = {0};
-        int32_t mixR[TEMPBUFSIZE] = {0};
-        int32_t numSamplesTodo = MIN(numSamples, TEMPBUFSIZE);
-        int32_t *mixBufSelect[AMIGA_VOICES] = { mixL, mixR, mixR, mixL };
-        paulaVoice_t *v = paula;
-        
-        numSamples -= numSamplesTodo;
-        
-        for (int32_t i = 0; i < AMIGA_VOICES; i++, v++)
+        if (!v->DMA_active)
+            continue;
+
+        int32_t *mixBuf = mixBufSelect[i]; // what output channel to mix into (L, R, R, L)
+        for (int32_t j = 0; j < numSamples; j++)
         {
-            if (!v->DMA_active)
-                continue;
-
-            int32_t *mixBuf = mixBufSelect[i]; // what output channel to mix into (L, R, R, L)
-            for (int32_t j = 0; j < numSamplesTodo; j++)
+            int32_t smp = 0;
+            for (int32_t k = 0; k < OVERSAMP_FACTOR; k++)
             {
-                int32_t smp = 0;
-                for (int32_t k = 0; k < oversampFactor; k++)
+                smp += v->sample;
+
+                v->phase += v->delta;
+                if (v->phase > UINT32_MAX) // next sample point
                 {
-                    smp += v->sample;
+                    v->phase &= UINT32_MAX; // we use single-step deltas (< 1.0), so this is safe
 
-                    v->phase += v->delta;
-                    if (v->phase > UINT32_MAX) // next sample point
+                    v->delta = v->AUD_PER_delta; // Paula only updates period (delta) during sample fetching
+
+                    if (v->sampleCounter == 0)
                     {
-                        v->phase &= UINT32_MAX; // we use single-step deltas (< 1.0), so this is safe
+                        // it's time to read new samples from DMA
 
-                        v->delta = v->AUD_PER_delta; // Paula only updates period (delta) during sample fetching
-
-                        if (v->sampleCounter == 0)
+                        if (--v->lengthCounter == 0)
                         {
-                            // it's time to read new samples from DMA
-
-                            if (--v->lengthCounter == 0)
-                            {
-                                v->lengthCounter = v->AUD_LEN;
-                                v->location = v->AUD_LC;
-                            }
-
-                            // fill DMA data buffer
-                            v->AUD_DAT[0] = *v->location++;
-                            v->AUD_DAT[1] = *v->location++;
-                            v->sampleCounter = 2;
+                            v->lengthCounter = v->AUD_LEN;
+                            v->location = v->AUD_LC;
                         }
 
-                        /* Pre-compute current sample point.
-                        ** Output volume is only read from AUD_VOL at this stage,
-                        ** and we don't emulate volume PWM anyway, so we can
-                        ** pre-multiply by volume at this point.
-                        */
-                        v->sample = v->AUD_DAT[0] * v->AUD_VOL; // -128 .. 127 * 0..64
-
-                        // progress AUD_DAT buffer
-                        v->AUD_DAT[0] = v->AUD_DAT[1];
-                        v->sampleCounter--;
+                        // fill DMA data buffer
+                        v->AUD_DAT[0] = *v->location++;
+                        v->AUD_DAT[1] = *v->location++;
+                        v->sampleCounter = 2;
                     }
+
+                    /* Pre-compute current sample point.
+                    ** Output volume is only read from AUD_VOL at this stage,
+                    ** and we don't emulate volume PWM anyway, so we can
+                    ** pre-multiply by volume at this point.
+                    */
+                    v->sample = v->AUD_DAT[0] * v->AUD_VOL; // -128 .. 127 * 0..64
+
+                    // progress AUD_DAT buffer
+                    v->AUD_DAT[0] = v->AUD_DAT[1];
+                    v->sampleCounter--;
                 }
-
-                mixBuf[j] += ((int64_t)smp * avgSmpMul) >> 32; // keep it EXACTLY like this for fast 64-bit mul on x86_32
             }
+
+            mixBuf[j] += ((int64_t)smp * avgSmpMul) >> 32; // keep it EXACTLY like this for fast 64-bit mul on x86_32
         }
-        
-        // apply filter, normalize, adjust stereo separation (if needed), dither and quantize
-        double dOut[2];
-        int32_t smp32;
-        
-        if (audio.stereoSeparation == 100) // Amiga panning (no stereo separation)
+    }
+    
+    // apply filter, normalize, adjust stereo separation (if needed), dither and quantize
+    double dOut[2];
+    int32_t smp32;
+    
+    if (audio.stereoSeparation == 100) // Amiga panning (no stereo separation)
+    {
+        for (int32_t j = 0; j < numSamples; j++)
         {
-            for (int32_t j = 0; j < numSamplesTodo; j++)
-            {
-                dOut[0] = mixL[j] * dMixNormalize;
-                dOut[1] = mixR[j] * dMixNormalize;
+            dOut[0] = mixL[j] * dMixNormalize;
+            dOut[1] = mixR[j] * dMixNormalize;
 
-                // left channel
-                smp32 = (int32_t)dOut[0];
-                CLAMP16(smp32);
-                *target++ = (int16_t)smp32;
+            // left channel
+            smp32 = (int32_t)dOut[0];
+            CLAMP16(smp32);
+            mixL[j] = smp32;
 
-                // right channel
-                smp32 = (int32_t)dOut[1];
-                CLAMP16(smp32);
-                *target++ = (int16_t)smp32;
-            }
+            // right channel
+            smp32 = (int32_t)dOut[1];
+            CLAMP16(smp32);
+            mixR[j] = smp32;
         }
-        else
+    }
+    else
+    {
+        for (int32_t j = 0; j < numSamples; j++)
         {
-            for (int32_t j = 0; j < numSamplesTodo; j++)
-            {
-                double dL = mixL[j] * dMixNormalize;
-                double dR = mixR[j] * dMixNormalize;
+            double dL = mixL[j] * dMixNormalize;
+            double dR = mixR[j] * dMixNormalize;
 
-                // apply stereo separation
-                const double dOldL = dL;
-                const double dOldR = dR;
-                double dMid  = (dOldL + dOldR) * STEREO_NORM_FACTOR;
-                double dSide = (dOldL - dOldR) * dSideFactor;
-                dL = dMid + dSide;
-                dR = dMid - dSide;
-                // -----------------------
+            // apply stereo separation
+            const double dOldL = dL;
+            const double dOldR = dR;
+            double dMid  = (dOldL + dOldR) * STEREO_NORM_FACTOR;
+            double dSide = (dOldL - dOldR) * dSideFactor;
+            dL = dMid + dSide;
+            dR = dMid - dSide;
+            // -----------------------
 
-                // left channel
-                smp32 = (int32_t)dL;
-                CLAMP16(smp32);
-                *target++ = (int16_t)smp32;
+            // left channel
+            smp32 = (int32_t)dL;
+            CLAMP16(smp32);
+            mixL[j] = smp32;
 
-                // right channel
-                smp32 = (int32_t)dR;
-                CLAMP16(smp32);
-                *target++ = (int16_t)smp32;
-            }
+            // right channel
+            smp32 = (int32_t)dR;
+            CLAMP16(smp32);
+            mixR[j] = smp32;
         }
     }
 }
@@ -320,6 +311,9 @@ void paulaOutputSamples(int16_t *stream, int32_t numSamples)
     int32_t samplesLeft = numSamples;
     while (samplesLeft > 0)
     {
+        int32_t mixL[TEMPBUFSIZE] = {0};
+        int32_t mixR[TEMPBUFSIZE] = {0};
+        
         if (audio.tickSampleCounter64 <= 0) // new replayer tick
         {
             SIDInterrupt(); // replayer.c
@@ -331,9 +325,15 @@ void paulaOutputSamples(int16_t *stream, int32_t numSamples)
         int32_t samplesToMix = samplesLeft;
         if (samplesToMix > remainingTick)
             samplesToMix = remainingTick;
+        if (samplesToMix > TEMPBUFSIZE)
+            samplesToMix = TEMPBUFSIZE;
 
-        paulaMixSamples(streamOut, samplesToMix, OVERSAMP_FACTOR);
-        streamOut += samplesToMix * 2;
+        paulaMixSamples(mixL, mixR, samplesToMix);
+        for (int32_t i = 0; i < samplesToMix; i++)
+        {
+            *streamOut++ = (int16_t)mixL[i];
+            *streamOut++ = (int16_t)mixR[i];
+        }
 
         samplesLeft -= samplesToMix;
         audio.tickSampleCounter64 -= (int64_t)samplesToMix << 32;
@@ -375,6 +375,7 @@ bool paulaInit(int32_t audioFrequency)
     paulaSetMasterVolume(256);
 
     dPeriodToDeltaDiv = (((double)PAULA_PAL_CLK / audio.outputFreq) / OVERSAMP_FACTOR) * (UINT32_MAX+1.0);
+    avgSmpMul = (int32_t)fmin(round((UINT32_MAX + 1.0) / (double)OVERSAMP_FACTOR), INT32_MAX);
 
     amigaSetCIAPeriod(AHX_DEFAULT_CIA_PERIOD);
     audio.tickSampleCounter64 = 0; // clear tick sample counter so that it will instantly initiate a tick
