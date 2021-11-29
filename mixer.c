@@ -26,9 +26,9 @@
 #define STEREO_NORM_FACTOR 0.5 /* cumulative mid/side normalization factor (1/sqrt(2))*(1/sqrt(2)) */
 
 #define TEMPBUFSIZE 512
-#define OVERSAMP_FACTOR 1024
+#define OVERSAMP_FACTOR 6
 
-static int8_t emptySample[MAX_SAMPLE_LENGTH*2];
+static int8_t emptySample[MAX_SAMPLE_LENGTH*2] = {0};
 static double dSideFactor, dPeriodToDeltaDiv, dMixNormalize;
 static int32_t avgSmpMul;
 
@@ -243,53 +243,31 @@ static void paulaMixSamples(int32_t *mixL, int32_t *mixR, int32_t numSamples)
     }
     
     // apply filter, normalize, adjust stereo separation (if needed), dither and quantize
-    double dOut[2];
-    int32_t smp32;
     
-    if (audio.stereoSeparation == 100) // Amiga panning (no stereo separation)
+    for (int32_t j = 0; j < numSamples; j++)
     {
-        for (int32_t j = 0; j < numSamples; j++)
-        {
-            dOut[0] = mixL[j] * dMixNormalize;
-            dOut[1] = mixR[j] * dMixNormalize;
+        double dL = mixL[j] * dMixNormalize;
+        double dR = mixR[j] * dMixNormalize;
+        int32_t smp32;
 
-            // left channel
-            smp32 = (int32_t)dOut[0];
-            CLAMP16(smp32);
-            mixL[j] = smp32;
+        // apply stereo separation
+        const double dOldL = dL;
+        const double dOldR = dR;
+        double dMid  = (dOldL + dOldR) * STEREO_NORM_FACTOR;
+        double dSide = (dOldL - dOldR) * dSideFactor;
+        dL = dMid + dSide;
+        dR = dMid - dSide;
+        // -----------------------
 
-            // right channel
-            smp32 = (int32_t)dOut[1];
-            CLAMP16(smp32);
-            mixR[j] = smp32;
-        }
-    }
-    else
-    {
-        for (int32_t j = 0; j < numSamples; j++)
-        {
-            double dL = mixL[j] * dMixNormalize;
-            double dR = mixR[j] * dMixNormalize;
+        // left channel
+        smp32 = (int32_t)dL;
+        CLAMP16(smp32);
+        mixL[j] = smp32;
 
-            // apply stereo separation
-            const double dOldL = dL;
-            const double dOldR = dR;
-            double dMid  = (dOldL + dOldR) * STEREO_NORM_FACTOR;
-            double dSide = (dOldL - dOldR) * dSideFactor;
-            dL = dMid + dSide;
-            dR = dMid - dSide;
-            // -----------------------
-
-            // left channel
-            smp32 = (int32_t)dL;
-            CLAMP16(smp32);
-            mixL[j] = smp32;
-
-            // right channel
-            smp32 = (int32_t)dR;
-            CLAMP16(smp32);
-            mixR[j] = smp32;
-        }
+        // right channel
+        smp32 = (int32_t)dR;
+        CLAMP16(smp32);
+        mixR[j] = smp32;
     }
 }
 
