@@ -17,6 +17,10 @@ typedef struct audio_t
     volatile bool playing, pause;
     int32_t outputFreq, masterVol, stereoSeparation;
     int64_t tickSampleCounter64, samplesPerTick64;
+    
+    //
+    double dSideFactor, dPeriodToDeltaDiv, dMixNormalize;
+    int32_t avgSmpMul;
 } audio_t;
 
 typedef struct voice_t
