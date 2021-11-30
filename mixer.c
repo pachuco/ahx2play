@@ -31,7 +31,6 @@ static int8_t emptySample[MAX_SAMPLE_LENGTH*2] = {0};
 
 // globalized
 audio_t audio;
-paulaVoice_t paula[AMIGA_VOICES];
 
 // -----------------------------------------------
 // -----------------------------------------------
@@ -46,7 +45,7 @@ void paulaSetMasterVolume(int32_t vol) // 0..256
 
 void resetCachedMixerPeriod(void)
 {
-    paulaVoice_t *v = paula;
+    paulaVoice_t *v = audio.paula;
     for (int32_t i = 0; i < AMIGA_VOICES; i++, v++)
     {
         v->oldPeriod = -1;
@@ -60,7 +59,7 @@ void resetCachedMixerPeriod(void)
 
 void paulaSetPeriod(int32_t ch, uint16_t period)
 {
-    paulaVoice_t *v = &paula[ch];
+    paulaVoice_t *v = audio.paula + ch;
 
     int32_t realPeriod = period;
     if (realPeriod == 0)
@@ -82,7 +81,7 @@ void paulaSetPeriod(int32_t ch, uint16_t period)
 
 void paulaSetVolume(int32_t ch, uint16_t vol)
 {
-    paulaVoice_t *v = &paula[ch];
+    paulaVoice_t *v = audio.paula + ch;
 
     int32_t realVol = vol;
 
@@ -102,7 +101,7 @@ void paulaSetLength(int32_t ch, uint16_t len)
     if (len > MAX_SAMPLE_LENGTH)
         len = MAX_SAMPLE_LENGTH;
         
-    paula[ch].AUD_LEN = len;
+    audio.paula[ch].AUD_LEN = len;
 }
 
 void paulaSetData(int32_t ch, const int8_t *src)
@@ -110,7 +109,7 @@ void paulaSetData(int32_t ch, const int8_t *src)
     if (src == NULL)
         src = emptySample;
 
-    paula[ch].AUD_LC = src;
+    audio.paula[ch].AUD_LC = src;
 }
 
 /* The following DMA functions are NOT to be
@@ -121,7 +120,8 @@ void paulaSetData(int32_t ch, const int8_t *src)
 
 void paulaStopAllDMAs(void)
 {
-    paulaVoice_t *v = paula;
+    paulaVoice_t *v = audio.paula;
+    
     for (int32_t i = 0; i < AMIGA_VOICES; i++, v++)
     {
         v->DMA_active = false;
@@ -132,9 +132,8 @@ void paulaStopAllDMAs(void)
 
 void paulaStartAllDMAs(void)
 {
-    paulaVoice_t *v;
-
-    v = paula;
+    paulaVoice_t *v = audio.paula;
+    
     for (int32_t i = 0; i < AMIGA_VOICES; i++, v++)
     {
         if (v->AUD_LC == NULL)
@@ -176,7 +175,7 @@ void paulaStartAllDMAs(void)
 static void paulaMixSamples(int32_t *mixL, int32_t *mixR, int32_t numSamples)
 {
     int32_t *mixBufSelect[AMIGA_VOICES] = { mixL, mixR, mixR, mixL };
-    paulaVoice_t *v = paula;
+    paulaVoice_t *v = audio.paula;
     
     for (int32_t i = 0; i < AMIGA_VOICES; i++, v++)
     {

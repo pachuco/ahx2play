@@ -12,17 +12,6 @@
 
 #define AMIGA_VOICES 4
 
-typedef struct audio_t
-{
-    volatile bool playing, pause;
-    int32_t outputFreq, masterVol, stereoSeparation;
-    int64_t tickSampleCounter64, samplesPerTick64;
-    
-    //
-    double dSideFactor, dPeriodToDeltaDiv, dMixNormalize;
-    int32_t avgSmpMul;
-} audio_t;
-
 typedef struct voice_t
 {
     volatile bool DMA_active;
@@ -46,6 +35,18 @@ typedef struct voice_t
     int32_t oldPeriod;
 } paulaVoice_t;
 
+typedef struct audio_t
+{
+    paulaVoice_t paula[AMIGA_VOICES];
+    volatile bool playing, pause;
+    int32_t outputFreq, masterVol, stereoSeparation;
+    int64_t tickSampleCounter64, samplesPerTick64;
+    
+    //
+    double dSideFactor, dPeriodToDeltaDiv, dMixNormalize;
+    int32_t avgSmpMul;
+} audio_t;
+
 void paulaClearFilterState(void);
 void resetCachedMixerPeriod(void);
 void resetAudioDithering(void);
@@ -68,4 +69,3 @@ void paulaSetLength(int32_t ch, uint16_t len);
 void paulaSetData(int32_t ch, const int8_t *src);
 
 extern audio_t audio; // paula.c
-extern paulaVoice_t paula[AMIGA_VOICES]; // paula.c
