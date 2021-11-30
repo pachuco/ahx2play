@@ -197,6 +197,7 @@ typedef struct
 
 typedef struct
 {
+    audio_t audio;
     song_t* song;
     int8_t SquareTempBuffer[AMIGA_VOICES][0x80];
     int8_t currentVoice[AMIGA_VOICES][0x280];
@@ -240,6 +241,7 @@ bool ahxInit(int32_t audioFreq, int32_t masterVol, int32_t stereoSeparation);
 
 bool ahxLoadSong(song_t* pSong);
 void ahxUnloadSong(void);
+void ahxOutputSamples(int16_t *stream, int32_t numSamples);
 
 void ahxClose(void);
 

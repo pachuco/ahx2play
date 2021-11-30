@@ -303,20 +303,20 @@ static void SetUpAudioChannels(void) // 8bb: only call this while mixer is locke
 {
     plyVoiceTemp_t *ch;
 
-    paulaStopAllDMAs();
+    paulaStopAllDMAs(&ahx.audio);
 
     ch = ahx.pvt;
     for (int32_t i = 0; i < AMIGA_VOICES; i++, ch++)
     {
         ch->audioPointer = ahx.currentVoice[i];
 
-        paulaSetPeriod(i, 0x88);
-        paulaSetData(i, ch->audioPointer);
-        paulaSetVolume(i, 0);
-        paulaSetLength(i, 0x280 / 2);
+        paulaSetPeriod(&ahx.audio, i, 0x88);
+        paulaSetData(&ahx.audio, i, ch->audioPointer);
+        paulaSetVolume(&ahx.audio, i, 0);
+        paulaSetLength(&ahx.audio, i, 0x280 / 2);
     }
 
-    paulaStartAllDMAs();
+    paulaStartAllDMAs(&ahx.audio);
 }
 
 static void InitVoiceXTemp(plyVoiceTemp_t *ch) // 8bb: only call this while mixer is locked!
@@ -336,7 +336,7 @@ static void InitVoiceXTemp(plyVoiceTemp_t *ch) // 8bb: only call this while mixe
 static void ahxQuietAudios(void)
 {
     for (int32_t i = 0; i < AMIGA_VOICES; i++)
-        paulaSetVolume(i, 0);
+        paulaSetVolume(&ahx.audio, i, 0);
 }
 
 static void CopyWaveformToPaulaBuffer(plyVoiceTemp_t *ch) // 8bb: I put this code in an own function
@@ -360,7 +360,7 @@ static void SetAudio(int32_t chNum, plyVoiceTemp_t *ch)
     // new PERIOD to plant ???
     if (ch->PlantPeriod)
     {
-        paulaSetPeriod(chNum, ch->audioPeriod);
+        paulaSetPeriod(&ahx.audio, chNum, ch->audioPeriod);
         ch->PlantPeriod = false;
     }
 
@@ -371,7 +371,7 @@ static void SetAudio(int32_t chNum, plyVoiceTemp_t *ch)
         ch->NewWaveform = false;
     }
 
-    paulaSetVolume(chNum, ch->audioVolume);
+    paulaSetVolume(&ahx.audio, chNum, ch->audioVolume);
 }
 
 static void ProcessStep(plyVoiceTemp_t *ch)
@@ -1399,7 +1399,7 @@ void ahxNextPattern(void)
     {
         ahx.PosJump = ahx.PosNr + 1;
         ahx.PatternBreak = true;
-        audio.tickSampleCounter64 = 0; // 8bb: clear tick sample counter so that it will instantly initiate a tick
+        ahx.audio.tickSampleCounter64 = 0; // 8bb: clear tick sample counter so that it will instantly initiate a tick
     }
 }
 
@@ -1409,7 +1409,7 @@ void ahxPrevPattern(void)
     {
         ahx.PosJump = ahx.PosNr - 1;
         ahx.PatternBreak = true;
-        audio.tickSampleCounter64 = 0; // 8bb: clear tick sample counter so that it will instantly initiate a tick
+        ahx.audio.tickSampleCounter64 = 0; // 8bb: clear tick sample counter so that it will instantly initiate a tick
     }
 }
 
@@ -1419,10 +1419,10 @@ bool ahxInit(int32_t audioFreq, int32_t masterVol, int32_t stereoSeparation)
     ahxErrCode = ERR_SUCCESS;
     
     ahxInitWaves();
-    paulaInit(audioFreq);
+    paulaInit(&ahx.audio, audioFreq);
 
-    paulaSetStereoSeparation(stereoSeparation);
-    paulaSetMasterVolume(masterVol);
+    paulaSetStereoSeparation(&ahx.audio, stereoSeparation);
+    paulaSetMasterVolume(&ahx.audio, masterVol);
 
     return true;
 }
@@ -1453,8 +1453,13 @@ bool ahxLoadSong(song_t* pSong)
 void ahxUnloadSong(void)
 {
     ahxStop();
-    paulaStopAllDMAs(); // 8bb: song can be free'd now
+    paulaStopAllDMAs(&ahx.audio); // 8bb: song can be free'd now
     ahx.song = NULL;
+}
+
+void ahxOutputSamples(int16_t *stream, int32_t numSamples)
+{
+    paulaOutputSamples(&ahx.audio, stream, numSamples);
 }
 
 void ahxClose(void)
@@ -1500,7 +1505,7 @@ bool ahxPlay(int32_t subSong)
         InitVoiceXTemp(&ahx.pvt[i]);
 
     SetUpAudioChannels();
-    amigaSetCIAPeriod(tabler[ahx.song->SongCIAPeriodIndex]);
+    amigaSetCIAPeriod(&ahx.audio, tabler[ahx.song->SongCIAPeriodIndex]);
 
     // 8bb: Added this. Clear custom data (these are put in the waves struct for dword-alignment)
     memset(ahx.SquareTempBuffer,   0, sizeof (ahx.SquareTempBuffer));
@@ -1517,9 +1522,9 @@ bool ahxPlay(int32_t subSong)
     ahx.loopCounter = 0;
     ahx.loopTimes = 0; // 8bb: updated later in WAV writing mode
 
-    audio.tickSampleCounter64 = 0; // 8bb: clear tick sample counter so that it will instantly initiate a tick
+    ahx.audio.tickSampleCounter64 = 0; // 8bb: clear tick sample counter so that it will instantly initiate a tick
 
-    resetCachedMixerPeriod();
+    resetCachedMixerPeriod(&ahx.audio);
 
     ahx.dBPM = amigaCIAPeriod2Hz(tabler[ahx.song->SongCIAPeriodIndex]) * 2.5;
 

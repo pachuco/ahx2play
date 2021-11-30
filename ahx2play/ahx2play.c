@@ -171,7 +171,7 @@ int main(int argc, char *argv[])
         
         return 1;
     }
-    if (!openMixer(audioFrequency, audioBufferSize, paulaOutputSamples))
+    if (!openMixer(audioFrequency, audioBufferSize, ahxOutputSamples))
     {
         closeMixer();
         printf("Error opening mixer!\n");
@@ -196,9 +196,9 @@ int main(int argc, char *argv[])
     printf("      p = Previous sub-song (if any)\n");
     printf("      h = Toggle Amiga hard-panning\n");
     printf("\n");
-    printf("Master volume: %d (%d%%)\n", audio.masterVol, (int32_t)((audio.masterVol / 256.0) * 100));
-    printf("Audio output frequency: %dHz\n", audio.outputFreq);
-    printf("Initial stereo separation: %d%%\n", audio.stereoSeparation);
+    printf("Master volume: %d (%d%%)\n", ahx.audio.masterVol, (int32_t)((ahx.audio.masterVol / 256.0) * 100));
+    printf("Audio output frequency: %dHz\n", ahx.audio.outputFreq);
+    printf("Initial stereo separation: %d%%\n", ahx.audio.stereoSeparation);
     printf("\n");
     printf("- SONG INFO -\n");
     printf(" Name: %s\n", ahx.song->Name);
@@ -216,7 +216,7 @@ int main(int argc, char *argv[])
 #endif
     hideTextCursor();
 
-    oldStereoSeparation = audio.stereoSeparation; // for toggling separation with 'h' key
+    oldStereoSeparation = ahx.audio.stereoSeparation; // for toggling separation with 'h' key
 
     programRunning = true;
     while (programRunning)
@@ -225,7 +225,7 @@ int main(int argc, char *argv[])
 
         printf(" Pos: %03d/%03d - Row: %02d/%02d - Speed: %d %s               \r",
             ahx.PosNr, ahx.song->LenNr, ahx.NoteNr, ahx.song->TrackLength, ahx.Tempo,
-            audio.pause ? "(PAUSED)" : "");
+            ahx.audio.pause ? "(PAUSED)" : "");
 
         fflush(stdout);
         Sleep(50);
@@ -354,15 +354,15 @@ static void readKeyboard(void)
 
             case 'h': // toggle Amiga hard-pan
             {
-                if (audio.stereoSeparation == 100)
-                    paulaSetStereoSeparation(oldStereoSeparation);
+                if (ahx.audio.stereoSeparation == 100)
+                    paulaSetStereoSeparation(&ahx.audio, oldStereoSeparation);
                 else
-                    paulaSetStereoSeparation(100);
+                    paulaSetStereoSeparation(&ahx.audio, 100);
             }
             break;
 
             case 0x20: // space (toggle pause)
-                paulaTogglePause();
+                paulaTogglePause(&ahx.audio);
             break;
 
             case 0x2B: // numpad + (next song position)
