@@ -146,7 +146,7 @@ static void setUpFilterWaveForms(int8_t *dst8Hi, int8_t *dst8Lo, int8_t *src8)
             for (int32_t k = 1; k <= 4; k++)
             {
                 /* Truncate lower 8 bits on 4th pass
-                ** to simulate bit reduced LUT of AHX.
+                ** to simulate bit reduced LUT of ahx->
                 ** Bit perfect result.
                 */
                 if (k == 4)
@@ -221,6 +221,8 @@ void ahxInitWaves(void) // 8bb: this generates bit-accurate AHX 2.3d-sp3 wavefor
     assert(crc32b((uint8_t *)&waves, 410760) == 0x40EEB1B9);
 }
 //---------------------------------------------------------------------------------------------------------------
+
+#define TEMPBUFSIZE 512
 
 static const uint8_t waveOffsets[6] =
 {
@@ -299,24 +301,24 @@ uint8_t ahxErrCode;
 
 // ------------
 
-static void SetUpAudioChannels(void) // 8bb: only call this while mixer is locked!
+static void SetUpAudioChannels(replayer_t *ahx) // 8bb: only call this while mixer is locked!
 {
     plyVoiceTemp_t *ch;
 
-    paulaStopAllDMAs(&ahx.audio);
+    paulaStopAllDMAs(&ahx->audio);
 
-    ch = ahx.pvt;
+    ch = ahx->pvt;
     for (int32_t i = 0; i < AMIGA_VOICES; i++, ch++)
     {
-        ch->audioPointer = ahx.currentVoice[i];
+        ch->audioPointer = ahx->currentVoice[i];
 
-        paulaSetPeriod(&ahx.audio, i, 0x88);
-        paulaSetData(&ahx.audio, i, ch->audioPointer);
-        paulaSetVolume(&ahx.audio, i, 0);
-        paulaSetLength(&ahx.audio, i, 0x280 / 2);
+        paulaSetPeriod(&ahx->audio, i, 0x88);
+        paulaSetData(&ahx->audio, i, ch->audioPointer);
+        paulaSetVolume(&ahx->audio, i, 0);
+        paulaSetLength(&ahx->audio, i, 0x280 / 2);
     }
 
-    paulaStartAllDMAs(&ahx.audio);
+    paulaStartAllDMAs(&ahx->audio);
 }
 
 static void InitVoiceXTemp(plyVoiceTemp_t *ch) // 8bb: only call this while mixer is locked!
@@ -333,10 +335,10 @@ static void InitVoiceXTemp(plyVoiceTemp_t *ch) // 8bb: only call this while mixe
     //ch->audioPointer = oldAudioPointer;
 }
 
-static void ahxQuietAudios(void)
+static void ahxQuietAudios(replayer_t *ahx)
 {
     for (int32_t i = 0; i < AMIGA_VOICES; i++)
-        paulaSetVolume(&ahx.audio, i, 0);
+        paulaSetVolume(&ahx->audio, i, 0);
 }
 
 static void CopyWaveformToPaulaBuffer(plyVoiceTemp_t *ch) // 8bb: I put this code in an own function
@@ -355,12 +357,12 @@ static void CopyWaveformToPaulaBuffer(plyVoiceTemp_t *ch) // 8bb: I put this cod
     }
 }
 
-static void SetAudio(int32_t chNum, plyVoiceTemp_t *ch)
+static void SetAudio(replayer_t *ahx, int32_t chNum, plyVoiceTemp_t *ch)
 {
     // new PERIOD to plant ???
     if (ch->PlantPeriod)
     {
-        paulaSetPeriod(&ahx.audio, chNum, ch->audioPeriod);
+        paulaSetPeriod(&ahx->audio, chNum, ch->audioPeriod);
         ch->PlantPeriod = false;
     }
 
@@ -371,17 +373,17 @@ static void SetAudio(int32_t chNum, plyVoiceTemp_t *ch)
         ch->NewWaveform = false;
     }
 
-    paulaSetVolume(&ahx.audio, chNum, ch->audioVolume);
+    paulaSetVolume(&ahx->audio, chNum, ch->audioVolume);
 }
 
-static void ProcessStep(plyVoiceTemp_t *ch)
+static void ProcessStep(replayer_t *ahx, plyVoiceTemp_t *ch)
 {
     uint8_t note, instr, cmd, param;
 
     ch->volumeSlideUp = 0; // means A cmd
     ch->volumeSlideDown = 0; // means A cmd
 
-    if (ch->Track > ahx.song->highestTrack) // 8bb: added this (this is technically what happens in AHX on illegal tracks)
+    if (ch->Track > ahx->song->highestTrack) // 8bb: added this (this is technically what happens in AHX on illegal tracks)
     {
         note = 0;
         instr = 0;
@@ -390,7 +392,7 @@ static void ProcessStep(plyVoiceTemp_t *ch)
     }
     else
     {
-        const uint8_t *bytes = &ahx.song->TrackTable[((ch->Track << 6) + ahx.NoteNr) * 3];
+        const uint8_t *bytes = &ahx->song->TrackTable[((ch->Track << 6) + ahx->NoteNr) * 3];
 
         note = (bytes[0] >> 2) & 0x3F;
         instr = ((bytes[0] & 3) << 4) | (bytes[1] >> 4);
@@ -406,7 +408,7 @@ static void ProcessStep(plyVoiceTemp_t *ch)
 
         if (eCmd == 0xC) // Effect  > EC<  -  NoteCut
         {
-            if (eParam < ahx.Tempo)
+            if (eParam < ahx->Tempo)
             {
                 ch->NoteCutWait = eParam;
                 ch->NoteCutOn = true;
@@ -420,7 +422,7 @@ static void ProcessStep(plyVoiceTemp_t *ch)
             {
                 ch->NoteDelayOn = false;
             }
-            else if (eParam < ahx.Tempo)
+            else if (eParam < ahx->Tempo)
             {
                 ch->NoteDelayWait = eParam;
                 if (ch->NoteDelayWait != 0)
@@ -438,7 +440,7 @@ static void ProcessStep(plyVoiceTemp_t *ch)
         {
             uint8_t pos = param & 0xF;
             if (pos <= 9)
-                ahx.PosJump = (param & 0xF) << 8; // 8bb: yes, this clears the lower byte too!
+                ahx->PosJump = (param & 0xF) << 8; // 8bb: yes, this clears the lower byte too!
         }
     }
 
@@ -449,28 +451,28 @@ static void ProcessStep(plyVoiceTemp_t *ch)
 
     if (cmd == 0xD) // Effect  > D <  -  Patternbreak
     {
-        ahx.PosJump = (ahx.PosJump & 0xFF00) | (ahx.PosNr + 1); // jump to next position
+        ahx->PosJump = (ahx->PosJump & 0xFF00) | (ahx->PosNr + 1); // jump to next position
 
-        ahx.PosJumpNote = ((param >> 4) * 10) + (param & 0xF);
-        if (ahx.PosJumpNote >= ahx.song->TrackLength)
-            ahx.PosJumpNote = 0;
+        ahx->PosJumpNote = ((param >> 4) * 10) + (param & 0xF);
+        if (ahx->PosJumpNote >= ahx->song->TrackLength)
+            ahx->PosJumpNote = 0;
 
-        ahx.PatternBreak = true;
+        ahx->PatternBreak = true;
     }
 
     if (cmd == 0xB) // Effect  > B <  -  Positionjump
     {
-        ahx.PosJump = (ahx.PosJump * 100) + ((param >> 4) * 10) + (param & 0xF);
-        ahx.PatternBreak = true;
+        ahx->PosJump = (ahx->PosJump * 100) + ((param >> 4) * 10) + (param & 0xF);
+        ahx->PatternBreak = true;
     }
 
     if (cmd == 0xF) // Effect  > F <  -  Set Tempo
     {
-        ahx.Tempo = param;
+        ahx->Tempo = param;
 
         // 8bb: added this for the WAV renderer
-        if (ahx.Tempo == 0)
-            ahx.isRecordingToWAV = false;
+        if (ahx->Tempo == 0)
+            ahx->isRecordingToWAV = false;
     }
 
     // Effect  > 5 <  -  Volume Slide + Tone Portamento
@@ -494,7 +496,7 @@ static void ProcessStep(plyVoiceTemp_t *ch)
         ch->periodSlideLimit = 0;
 
         // init adsr-envelope
-        instrument_t *ins = ahx.song->Instruments[instr-1];
+        instrument_t *ins = ahx->song->Instruments[instr-1];
         if (ins == NULL) // 8bb: added this (this is technically what happens in AHX on illegal instruments)
             ins = &EmptyInstrument;
 
@@ -703,7 +705,7 @@ static void ProcessStep(plyVoiceTemp_t *ch)
                 if (p <= 0x40)
                 {
                     // 8bb: set TrackMasterVolume for all channels
-                    plyVoiceTemp_t *c = ahx.pvt;
+                    plyVoiceTemp_t *c = ahx->pvt;
                     for (int32_t i = 0; i < AMIGA_VOICES; i++, c++)
                         c->TrackMasterVolume = (uint8_t)p;
                 }
@@ -842,25 +844,25 @@ static void pListCommandParse(plyVoiceTemp_t *ch, uint8_t cmd, uint8_t param)
     }
 }
 
-static void ProcessFrame(plyVoiceTemp_t *ch)
+static void ProcessFrame(replayer_t *ahx, plyVoiceTemp_t *ch)
 {
     if (ch->HardCut != 0)
     {
         uint8_t track = ch->Track;
 
-        uint16_t noteNr = ahx.NoteNr + 1; // chk next note!
-        if (noteNr == ahx.song->TrackLength)
+        uint16_t noteNr = ahx->NoteNr + 1; // chk next note!
+        if (noteNr == ahx->song->TrackLength)
         {
             noteNr = 0; // note 0 from next pos!
             track = ch->NextTrack;
         }
 
-        const uint8_t *bytes = &ahx.song->TrackTable[((track << 6) + noteNr) * 3];
+        const uint8_t *bytes = &ahx->song->TrackTable[((track << 6) + noteNr) * 3];
 
         uint8_t nextInstr = ((bytes[0] & 3) << 4) | (bytes[1] >> 4);
         if (nextInstr != 0)
         {
-            int8_t range = ahx.Tempo - ch->HardCut; // range 1->7, tempo=6, hc=1, cut at tick 5, right
+            int8_t range = ahx->Tempo - ch->HardCut; // range 1->7, tempo=6, hc=1, cut at tick 5, right
             if (range < 0)
                 range = 0; // tempo=2, hc=7, cut at tick 0 (NOW!!)
 
@@ -868,7 +870,7 @@ static void ProcessFrame(plyVoiceTemp_t *ch)
             {
                 ch->NoteCutOn = true;
                 ch->NoteCutWait = range;
-                ch->HardCutReleaseF = 0 - (ch->NoteCutWait - ahx.Tempo);
+                ch->HardCutReleaseF = 0 - (ch->NoteCutWait - ahx->Tempo);
             }
 
             ch->HardCut = 0;
@@ -904,7 +906,7 @@ static void ProcessFrame(plyVoiceTemp_t *ch)
     if (ch->NoteDelayOn)
     {
         if (ch->NoteDelayWait == 0)
-            ProcessStep(ch);
+            ProcessStep(ahx, ch);
         else
             ch->NoteDelayWait--;
     }
@@ -1007,7 +1009,7 @@ static void ProcessFrame(plyVoiceTemp_t *ch)
             /* 8bb: AHX QUIRK! Perf speed $80 results in no delay. This has to do with
             ** "sub.b #1,Dn | bgt.s .Delay". The BGT instruction will not branch if
             ** the register got overflown before the comparison (V flag set).
-            ** WinAHX/AHX.cpp is not handling this correctly, porters beware!
+            ** WinAHX/ahx->cpp is not handling this correctly, porters beware!
             **
             ** "Enchanted Friday Nights" by JazzCat is a song that depends on this quirk
             ** for the lead instrument to sound right.
@@ -1135,7 +1137,7 @@ static void ProcessFrame(plyVoiceTemp_t *ch)
             }
 
             int32_t cycles = 1;
-            if (ch->filterSpeed < 4) // 8bb: < 4 is correct, not < 3 like in WinAHX/AHX.cpp!
+            if (ch->filterSpeed < 4) // 8bb: < 4 is correct, not < 3 like in WinAHX/ahx->cpp!
                 cycles = 5 - ch->filterSpeed;
 
             for (int32_t i = 0; i < cycles; i++)
@@ -1183,7 +1185,7 @@ static void ProcessFrame(plyVoiceTemp_t *ch)
 
         src8 += whichSquare << 7; // *$80
 
-        ahx.WaveformTab[2] = ch->SquareTempBuffer;
+        ahx->WaveformTab[2] = ch->SquareTempBuffer;
 
         const int32_t delta = (1 << 5) >> ch->Wavelength;
         const int32_t cycles = (1 << ch->Wavelength) << 2; // 8bb: <<2 since we do bytes not dwords, unlike AHX
@@ -1206,7 +1208,7 @@ static void ProcessFrame(plyVoiceTemp_t *ch)
     // Init the final audioPointer
     if (ch->NewWaveform)
     {
-        const int8_t *audioSource = ahx.WaveformTab[ch->Waveform];
+        const int8_t *audioSource = ahx->WaveformTab[ch->Waveform];
 
         // Waveform 3 (doesn't need filter add)..
         if (ch->Waveform != 3-1)
@@ -1225,7 +1227,7 @@ static void ProcessFrame(plyVoiceTemp_t *ch)
         // Waveform 4
         if (ch->Waveform == 4-1)
         {
-            uint32_t seed = ahx.WNRandom;
+            uint32_t seed = ahx->WNRandom;
 
             audioSource += seed & ((NOIZE_SIZE-0x280) - 1);
 
@@ -1234,7 +1236,7 @@ static void ProcessFrame(plyVoiceTemp_t *ch)
             seed += 782323;
             seed ^= 0b1001011;
             seed -= 6735;
-            ahx.WNRandom = seed;
+            ahx->WNRandom = seed;
         }
 
         ch->audioSource = audioSource;
@@ -1288,31 +1290,31 @@ static void ProcessFrame(plyVoiceTemp_t *ch)
     ch->audioVolume = (finalVol * ch->TrackMasterVolume) >> 6;
 }
 
-void SIDInterrupt(void)
+void SIDInterrupt(replayer_t *ahx)
 {
     plyVoiceTemp_t *ch;
 
-    if (!ahx.intPlaying)
+    if (!ahx->intPlaying)
         return;
 
-    // set audioregisters... (8bb: yes, this is done here, NOT last like in WinAHX/AHX.cpp!)
-    ch = ahx.pvt;
+    // set audioregisters... (8bb: yes, this is done here, NOT last like in WinAHX/ahx->cpp!)
+    ch = ahx->pvt;
     for (int32_t i = 0; i < AMIGA_VOICES; i++, ch++)
-        SetAudio(i, ch);
+        SetAudio(ahx, i, ch);
 
-    if (ahx.StepWaitFrames == 0)
+    if (ahx->StepWaitFrames == 0)
     {
-        if (ahx.GetNewPosition)
+        if (ahx->GetNewPosition)
         {
-            uint16_t posNext = ahx.PosNr + 1;
-            if (posNext == ahx.song->LenNr)
+            uint16_t posNext = ahx->PosNr + 1;
+            if (posNext == ahx->song->LenNr)
                 posNext = 0;
 
             // get Track AND Transpose (8bb: also for next position)
-            uint8_t *posTable = &ahx.song->PosTable[ahx.PosNr << 3];
-            uint8_t *posTableNext = &ahx.song->PosTable[posNext << 3];
+            uint8_t *posTable = &ahx->song->PosTable[ahx->PosNr << 3];
+            uint8_t *posTableNext = &ahx->song->PosTable[posNext << 3];
 
-            ch = ahx.pvt;
+            ch = ahx->pvt;
             for (int32_t i = 0; i < AMIGA_VOICES; i++, ch++)
             {
                 const int32_t offset = i << 1;
@@ -1322,69 +1324,69 @@ void SIDInterrupt(void)
                 ch->NextTranspose = posTableNext[offset+1];
             }
 
-            ahx.GetNewPosition = false; // got new pos.
+            ahx->GetNewPosition = false; // got new pos.
         }
 
         // - new pos or not, now treat STEPs (means 'em notes 'emself)
-        ch = ahx.pvt;
+        ch = ahx->pvt;
         for (int32_t i = 0; i < AMIGA_VOICES; i++, ch++)
-            ProcessStep(ch);
+            ProcessStep(ahx, ch);
 
-        ahx.StepWaitFrames = ahx.Tempo;
+        ahx->StepWaitFrames = ahx->Tempo;
     }
 
-    ch = ahx.pvt;
+    ch = ahx->pvt;
     for (int32_t i = 0; i < AMIGA_VOICES; i++, ch++)
-        ProcessFrame(ch);
+        ProcessFrame(ahx, ch);
 
-    ahx.StepWaitFrames--;
-    if (ahx.StepWaitFrames == 0)
+    ahx->StepWaitFrames--;
+    if (ahx->StepWaitFrames == 0)
     {
-        if (!ahx.PatternBreak)
+        if (!ahx->PatternBreak)
         {
-            ahx.NoteNr++;
-            if (ahx.NoteNr == ahx.song->TrackLength)
+            ahx->NoteNr++;
+            if (ahx->NoteNr == ahx->song->TrackLength)
             {
                 // norm. next pos. does just position-jump!
-                ahx.PosJump = ahx.PosNr + 1;
-                ahx.PatternBreak = true;
+                ahx->PosJump = ahx->PosNr + 1;
+                ahx->PatternBreak = true;
             }
         }
 
-        if (ahx.PatternBreak)
+        if (ahx->PatternBreak)
         {
-            ahx.PatternBreak = false;
+            ahx->PatternBreak = false;
 
-            ahx.NoteNr = ahx.PosJumpNote;
-            ahx.PosJumpNote = 0;
+            ahx->NoteNr = ahx->PosJumpNote;
+            ahx->PosJumpNote = 0;
 
-            ahx.PosNr = ahx.PosJump;
-            ahx.PosJump = 0;
+            ahx->PosNr = ahx->PosJump;
+            ahx->PosJump = 0;
 
-            if (ahx.PosNr == ahx.song->LenNr)
+            if (ahx->PosNr == ahx->song->LenNr)
             {
-                ahx.PosNr = ahx.song->ResNr;
+                ahx->PosNr = ahx->song->ResNr;
 
                 // 8bb: added this (for WAV rendering)
-                if (ahx.loopCounter >= ahx.loopTimes)
-                    ahx.isRecordingToWAV = false;
+                if (ahx->loopCounter >= ahx->loopTimes)
+                    ahx->isRecordingToWAV = false;
                 else
-                    ahx.loopCounter++;
+                    ahx->loopCounter++;
             }
 
             // 8bb: safety bug-fix..
-            if (ahx.PosNr >= ahx.song->LenNr)
+            if (ahx->PosNr >= ahx->song->LenNr)
             {
-                ahx.PosNr = 0;
+                ahx->PosNr = 0;
 
                 // 8bb: added this (for WAV rendering)
-                if (ahx.loopCounter >= ahx.loopTimes)
-                    ahx.isRecordingToWAV = false; // 8bb: stop WAV recording
+                if (ahx->loopCounter >= ahx->loopTimes)
+                    ahx->isRecordingToWAV = false; // 8bb: stop WAV recording
                 else
-                    ahx.loopCounter++;
+                    ahx->loopCounter++;
             }
 
-            ahx.GetNewPosition = true;
+            ahx->GetNewPosition = true;
         }
     }
 }
@@ -1393,85 +1395,125 @@ void SIDInterrupt(void)
  *        PLAYER INTERFACING ROUTINES                                      *
  ***************************************************************************/
 
-void ahxNextPattern(void)
+void ahxNextPattern(replayer_t *ahx)
 {
-    if (ahx.PosNr+1 < ahx.song->LenNr)
+    if (ahx->PosNr+1 < ahx->song->LenNr)
     {
-        ahx.PosJump = ahx.PosNr + 1;
-        ahx.PatternBreak = true;
-        ahx.audio.tickSampleCounter64 = 0; // 8bb: clear tick sample counter so that it will instantly initiate a tick
+        ahx->PosJump = ahx->PosNr + 1;
+        ahx->PatternBreak = true;
+        ahx->audio.tickSampleCounter64 = 0; // 8bb: clear tick sample counter so that it will instantly initiate a tick
     }
 }
 
-void ahxPrevPattern(void)
+void ahxPrevPattern(replayer_t *ahx)
 {
-    if (ahx.PosNr > 0)
+    if (ahx->PosNr > 0)
     {
-        ahx.PosJump = ahx.PosNr - 1;
-        ahx.PatternBreak = true;
-        ahx.audio.tickSampleCounter64 = 0; // 8bb: clear tick sample counter so that it will instantly initiate a tick
+        ahx->PosJump = ahx->PosNr - 1;
+        ahx->PatternBreak = true;
+        ahx->audio.tickSampleCounter64 = 0; // 8bb: clear tick sample counter so that it will instantly initiate a tick
     }
 }
 
 // 8bb: masterVol = 0..256 (default = 256), stereoSeparation = 0..100 (percentage, default = 20)
-bool ahxInit(int32_t audioFreq, int32_t masterVol, int32_t stereoSeparation)
+replayer_t* ahxInit(int32_t audioFreq, int32_t masterVol, int32_t stereoSeparation)
 {
-    ahxErrCode = ERR_SUCCESS;
+    replayer_t* ahx = calloc(1, sizeof(replayer_t));
     
+    ahxErrCode = ERR_SUCCESS;
     ahxInitWaves();
-    paulaInit(&ahx.audio, audioFreq);
+    
+    if (ahx == NULL)
+    {
+        ahxErrCode = ERR_OUT_OF_MEMORY;
+        return NULL;
+    }
+    
+    paulaInit(&ahx->audio, audioFreq);
 
-    paulaSetStereoSeparation(&ahx.audio, stereoSeparation);
-    paulaSetMasterVolume(&ahx.audio, masterVol);
+    paulaSetStereoSeparation(&ahx->audio, stereoSeparation);
+    paulaSetMasterVolume(&ahx->audio, masterVol);
 
-    return true;
+    return ahx;
 }
 
-bool ahxLoadSong(song_t* pSong)
+bool ahxLoadSong(replayer_t *ahx, song_t* pSong)
 {
     if (!pSong)
     {
-        return false;
-    }
-    // 8bb: added this check
-    if (!isInitWaveforms)
-    {
-        ahxErrCode = ERR_NO_WAVES;
+        ahxErrCode = ERR_NOT_AN_AHX;
         return false;
     }
     
-    ahx.songLoaded = false;
+    ahx->songLoaded = false;
     // 8bb: set up waveform pointers (Note: ret->WaveformTab[2] gets initialized in the replayer!)
-    ahx.WaveformTab[0] = waves.triangle04;
-    ahx.WaveformTab[1] = waves.sawtooth04;
-    ahx.WaveformTab[3] = waves.whiteNoiseBig;
-    ahx.song = pSong;
-    ahx.songLoaded = true;
+    ahx->WaveformTab[0] = waves.triangle04;
+    ahx->WaveformTab[1] = waves.sawtooth04;
+    ahx->WaveformTab[3] = waves.whiteNoiseBig;
+    ahx->song = pSong;
+    ahx->songLoaded = true;
     return true;
 }
 
-void ahxUnloadSong(void)
+void ahxUnloadSong(replayer_t *ahx)
 {
-    ahxStop();
-    paulaStopAllDMAs(&ahx.audio); // 8bb: song can be free'd now
-    ahx.song = NULL;
+    ahxStop(ahx);
+    paulaStopAllDMAs(&ahx->audio); // 8bb: song can be free'd now
+    ahx->song = NULL;
 }
 
-void ahxOutputSamples(int16_t *stream, int32_t numSamples)
+void ahxOutputSamples(replayer_t *ahx, int16_t *stream, int32_t numSamples)
 {
-    paulaOutputSamples(&ahx.audio, stream, numSamples);
+    int16_t *streamOut = (int16_t *)stream;
+
+    if (ahx->audio.pause)
+    {
+        memset(stream, 0, numSamples * 2 * sizeof (short));
+        return;
+    }
+
+    int32_t samplesLeft = numSamples;
+    while (samplesLeft > 0)
+    {
+        int32_t mixL[TEMPBUFSIZE] = {0};
+        int32_t mixR[TEMPBUFSIZE] = {0};
+        
+        if (ahx->audio.tickSampleCounter64 <= 0) // new replayer tick
+        {
+            SIDInterrupt(ahx);
+            ahx->audio.tickSampleCounter64 += ahx->audio.samplesPerTick64;
+        }
+
+        const int32_t remainingTick = (ahx->audio.tickSampleCounter64 + UINT32_MAX) >> 32; // ceil rounding (upwards)
+
+        int32_t samplesToMix = samplesLeft;
+        if (samplesToMix > remainingTick)
+            samplesToMix = remainingTick;
+        if (samplesToMix > TEMPBUFSIZE)
+            samplesToMix = TEMPBUFSIZE;
+
+        paulaMixSamples(&ahx->audio, mixL, mixR, samplesToMix);
+        for (int32_t i = 0; i < samplesToMix; i++)
+        {
+            *streamOut++ = (int16_t)mixL[i];
+            *streamOut++ = (int16_t)mixR[i];
+        }
+
+        samplesLeft -= samplesToMix;
+        ahx->audio.tickSampleCounter64 -= (int64_t)samplesToMix << 32;
+    }
 }
 
-void ahxClose(void)
+void ahxClose(replayer_t *ahx)
 {
-    //////////////////////////////////////////////////////////////////////////////
+    if (ahx) free(ahx);
 }
 
-bool ahxPlay(int32_t subSong)
+bool ahxPlay(replayer_t *ahx, int32_t subSong)
 {
     ahxErrCode = ERR_SUCCESS;
 
-    if (!ahx.songLoaded)
+    if (!ahx->songLoaded)
     {
         ahxErrCode = ERR_SONG_NOT_LOADED;
         return false;
@@ -1483,63 +1525,63 @@ bool ahxPlay(int32_t subSong)
         return false; // 8bb: waves not set up!
     }
     
-    ahx.Subsong = 0;
-    ahx.PosNr = 0;
-    if (subSong > 0 && ahx.song->Subsongs > 0)
+    ahx->Subsong = 0;
+    ahx->PosNr = 0;
+    if (subSong > 0 && ahx->song->Subsongs > 0)
     {
         subSong--;
-        if (subSong >= ahx.song->Subsongs)
-            subSong = ahx.song->Subsongs-1;
+        if (subSong >= ahx->song->Subsongs)
+            subSong = ahx->song->Subsongs-1;
 
-        ahx.Subsong = (uint8_t)(subSong + 1);
-        ahx.PosNr = ahx.song->SubSongTable[subSong];
+        ahx->Subsong = (uint8_t)(subSong + 1);
+        ahx->PosNr = ahx->song->SubSongTable[subSong];
     }
 
-    ahx.StepWaitFrames = 0;
-    ahx.GetNewPosition = true;
-    ahx.NoteNr = 0;
+    ahx->StepWaitFrames = 0;
+    ahx->GetNewPosition = true;
+    ahx->NoteNr = 0;
 
-    ahxQuietAudios();
+    ahxQuietAudios(ahx);
 
     for (int32_t i = 0; i < AMIGA_VOICES; i++)
-        InitVoiceXTemp(&ahx.pvt[i]);
+        InitVoiceXTemp(&ahx->pvt[i]);
 
-    SetUpAudioChannels();
-    amigaSetCIAPeriod(&ahx.audio, tabler[ahx.song->SongCIAPeriodIndex]);
+    SetUpAudioChannels(ahx);
+    amigaSetCIAPeriod(&ahx->audio, tabler[ahx->song->SongCIAPeriodIndex]);
 
     // 8bb: Added this. Clear custom data (these are put in the waves struct for dword-alignment)
-    memset(ahx.SquareTempBuffer,   0, sizeof (ahx.SquareTempBuffer));
-    memset(ahx.currentVoice,       0, sizeof (ahx.currentVoice));
+    memset(ahx->SquareTempBuffer,   0, sizeof (ahx->SquareTempBuffer));
+    memset(ahx->currentVoice,       0, sizeof (ahx->currentVoice));
 
-    plyVoiceTemp_t *ch = ahx.pvt;
+    plyVoiceTemp_t *ch = ahx->pvt;
     for (int32_t i = 0; i < AMIGA_VOICES; i++, ch++)
-        ch->SquareTempBuffer = ahx.SquareTempBuffer[i];
+        ch->SquareTempBuffer = ahx->SquareTempBuffer[i];
 
-    ahx.PosJump = false;
-    ahx.Tempo = 6;
-    ahx.intPlaying = true;
+    ahx->PosJump = false;
+    ahx->Tempo = 6;
+    ahx->intPlaying = true;
 
-    ahx.loopCounter = 0;
-    ahx.loopTimes = 0; // 8bb: updated later in WAV writing mode
+    ahx->loopCounter = 0;
+    ahx->loopTimes = 0; // 8bb: updated later in WAV writing mode
 
-    ahx.audio.tickSampleCounter64 = 0; // 8bb: clear tick sample counter so that it will instantly initiate a tick
+    ahx->audio.tickSampleCounter64 = 0; // 8bb: clear tick sample counter so that it will instantly initiate a tick
 
-    resetCachedMixerPeriod(&ahx.audio);
+    resetCachedMixerPeriod(&ahx->audio);
 
-    ahx.dBPM = amigaCIAPeriod2Hz(tabler[ahx.song->SongCIAPeriodIndex]) * 2.5;
+    ahx->dBPM = amigaCIAPeriod2Hz(tabler[ahx->song->SongCIAPeriodIndex]) * 2.5;
 
-    ahx.WNRandom = 0; // 8bb: Clear RNG seed (AHX doesn't do this)
+    ahx->WNRandom = 0; // 8bb: Clear RNG seed (AHX doesn't do this)
 
     return true;
 }
 
-void ahxStop(void)
+void ahxStop(replayer_t *ahx)
 {
-    ahx.intPlaying = false;
-    ahxQuietAudios();
+    ahx->intPlaying = false;
+    ahxQuietAudios(ahx);
 
     for (int32_t i = 0; i < AMIGA_VOICES; i++)
-        InitVoiceXTemp(&ahx.pvt[i]);
+        InitVoiceXTemp(&ahx->pvt[i]);
 }
 
 int32_t ahxGetErrorCode(void)

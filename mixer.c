@@ -24,7 +24,6 @@
 #define NORM_FACTOR 1.5 /* can clip from high-pass filter overshoot */
 #define STEREO_NORM_FACTOR 0.5 /* cumulative mid/side normalization factor (1/sqrt(2))*(1/sqrt(2)) */
 
-#define TEMPBUFSIZE 512
 #define OVERSAMP_FACTOR 6
 
 static int8_t emptySample[MAX_SAMPLE_LENGTH*2] = {0};
@@ -168,7 +167,7 @@ void paulaStartAllDMAs(audio_t *audio)
     }
 }
 
-static void paulaMixSamples(audio_t *audio, int32_t *mixL, int32_t *mixR, int32_t numSamples)
+void paulaMixSamples(audio_t *audio, int32_t *mixL, int32_t *mixR, int32_t numSamples)
 {
     int32_t *mixBufSelect[AMIGA_VOICES] = { mixL, mixR, mixR, mixL };
     paulaVoice_t *v = audio->paula;
@@ -252,49 +251,6 @@ static void paulaMixSamples(audio_t *audio, int32_t *mixL, int32_t *mixR, int32_
         smp32 = (int32_t)dR;
         CLAMP16(smp32);
         mixR[j] = smp32;
-    }
-}
-
-
-void paulaOutputSamples(audio_t *audio, int16_t *stream, int32_t numSamples)
-{
-    int16_t *streamOut = (int16_t *)stream;
-
-    if (audio->pause)
-    {
-        memset(stream, 0, numSamples * 2 * sizeof (short));
-        return;
-    }
-
-    int32_t samplesLeft = numSamples;
-    while (samplesLeft > 0)
-    {
-        int32_t mixL[TEMPBUFSIZE] = {0};
-        int32_t mixR[TEMPBUFSIZE] = {0};
-        
-        if (audio->tickSampleCounter64 <= 0) // new replayer tick
-        {
-            SIDInterrupt();
-            audio->tickSampleCounter64 += audio->samplesPerTick64;
-        }
-
-        const int32_t remainingTick = (audio->tickSampleCounter64 + UINT32_MAX) >> 32; // ceil rounding (upwards)
-
-        int32_t samplesToMix = samplesLeft;
-        if (samplesToMix > remainingTick)
-            samplesToMix = remainingTick;
-        if (samplesToMix > TEMPBUFSIZE)
-            samplesToMix = TEMPBUFSIZE;
-
-        paulaMixSamples(audio, mixL, mixR, samplesToMix);
-        for (int32_t i = 0; i < samplesToMix; i++)
-        {
-            *streamOut++ = (int16_t)mixL[i];
-            *streamOut++ = (int16_t)mixR[i];
-        }
-
-        samplesLeft -= samplesToMix;
-        audio->tickSampleCounter64 -= (int64_t)samplesToMix << 32;
     }
 }
 

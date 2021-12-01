@@ -36,12 +36,18 @@ static int32_t WAVSongLoopTimes = DEFAULT_WAVRENDER_LOOPS;
 static volatile bool programRunning;
 static char *filename, *WAVRenderFilename;
 static int32_t oldStereoSeparation;
-static song_t* song = NULL;
+static song_t *song = NULL;
+static replayer_t *ahx;
 
 static void showUsage(void);
 static void handleArguments(int argc, char *argv[]);
 static void readKeyboard(void);
 static int32_t renderToWav(void);
+
+void sampleRenderCallback(int16_t *stream, int32_t numSamples)
+{
+    ahxOutputSamples(ahx, stream, numSamples);
+}
 
 // yuck!
 #ifdef _WIN32
@@ -93,9 +99,10 @@ int main(int argc, char *argv[])
         return renderToWav();
 
     // Initialize AHX system
-    if (!ahxInit(audioFrequency, masterVolume, stereoSeparation))
+    ahx = ahxInit(audioFrequency, masterVolume, stereoSeparation);
+    if (ahx == NULL)
     {
-        ahxClose();
+        ahxClose(ahx);
 
         printf("Error initializing AHX replayer: ");
         switch (ahxGetErrorCode())
@@ -116,9 +123,9 @@ int main(int argc, char *argv[])
 
     // Load song
     song = ahxLoadFromFile(filename);
-    if (!ahxLoadSong(song))
+    if (!ahxLoadSong(ahx, song))
     {
-        ahxClose();
+        ahxClose(ahx);
 
         printf("Error loading AHX module: ");
         switch (ahxGetErrorCode())
@@ -147,12 +154,12 @@ int main(int argc, char *argv[])
 
     // Play song (start at song #0)
     lockMixer();
-    bool canPlay = ahxPlay(0);
+    bool canPlay = ahxPlay(ahx, 0);
     unlockMixer();
     if (!canPlay)
     {
         ahxFreeSong(song);
-        ahxClose();
+        ahxClose(ahx);
 
         printf("Error playing AHX module: ");
         switch (ahxGetErrorCode())
@@ -171,7 +178,7 @@ int main(int argc, char *argv[])
         
         return 1;
     }
-    if (!openMixer(audioFrequency, audioBufferSize, ahxOutputSamples))
+    if (!openMixer(audioFrequency, audioBufferSize, sampleRenderCallback))
     {
         closeMixer();
         printf("Error opening mixer!\n");
@@ -196,18 +203,18 @@ int main(int argc, char *argv[])
     printf("      p = Previous sub-song (if any)\n");
     printf("      h = Toggle Amiga hard-panning\n");
     printf("\n");
-    printf("Master volume: %d (%d%%)\n", ahx.audio.masterVol, (int32_t)((ahx.audio.masterVol / 256.0) * 100));
-    printf("Audio output frequency: %dHz\n", ahx.audio.outputFreq);
-    printf("Initial stereo separation: %d%%\n", ahx.audio.stereoSeparation);
+    printf("Master volume: %d (%d%%)\n", ahx->audio.masterVol, (int32_t)((ahx->audio.masterVol / 256.0) * 100));
+    printf("Audio output frequency: %dHz\n", ahx->audio.outputFreq);
+    printf("Initial stereo separation: %d%%\n", ahx->audio.stereoSeparation);
     printf("\n");
     printf("- SONG INFO -\n");
-    printf(" Name: %s\n", ahx.song->Name);
-    printf(" Song revision: v%d\n", ahx.song->Revision);
-    printf(" Sub-songs: %d\n", ahx.song->Subsongs);
-    printf(" Song length: %d (restart pos: %d)\n", ahx.song->LenNr, ahx.song->ResNr);
-    printf(" Song tick rate: %.4fHz (%.2f BPM)\n", ahx.dBPM / 2.5, ahx.dBPM);
-    printf(" Track length: %d\n", ahx.song->TrackLength);
-    printf(" Instruments: %d\n", ahx.song->numInstruments);
+    printf(" Name: %s\n", ahx->song->Name);
+    printf(" Song revision: v%d\n", ahx->song->Revision);
+    printf(" Sub-songs: %d\n", ahx->song->Subsongs);
+    printf(" Song length: %d (restart pos: %d)\n", ahx->song->LenNr, ahx->song->ResNr);
+    printf(" Song tick rate: %.4fHz (%.2f BPM)\n", ahx->dBPM / 2.5, ahx->dBPM);
+    printf(" Track length: %d\n", ahx->song->TrackLength);
+    printf(" Instruments: %d\n", ahx->song->numInstruments);
     printf("\n");
     printf("- STATUS -\n");
 
@@ -216,7 +223,7 @@ int main(int argc, char *argv[])
 #endif
     hideTextCursor();
 
-    oldStereoSeparation = ahx.audio.stereoSeparation; // for toggling separation with 'h' key
+    oldStereoSeparation = ahx->audio.stereoSeparation; // for toggling separation with 'h' key
 
     programRunning = true;
     while (programRunning)
@@ -224,8 +231,8 @@ int main(int argc, char *argv[])
         readKeyboard();
 
         printf(" Pos: %03d/%03d - Row: %02d/%02d - Speed: %d %s               \r",
-            ahx.PosNr, ahx.song->LenNr, ahx.NoteNr, ahx.song->TrackLength, ahx.Tempo,
-            ahx.audio.pause ? "(PAUSED)" : "");
+            ahx->PosNr, ahx->song->LenNr, ahx->NoteNr, ahx->song->TrackLength, ahx->Tempo,
+            ahx->audio.pause ? "(PAUSED)" : "");
 
         fflush(stdout);
         Sleep(50);
@@ -237,11 +244,11 @@ int main(int argc, char *argv[])
 #endif
     showTextCursor();
     
-    AUDSYNC(ahxUnloadSong());
+    AUDSYNC(ahxUnloadSong(ahx));
     // Free loaded song
     ahxFreeSong(song);
     // Close AHX system
-    ahxClose();
+    ahxClose(ahx);
 
     printf("Playback stopped.\n");
     return 0;
@@ -329,48 +336,48 @@ static void readKeyboard(void)
             break;
 
             case 'r': // restart
-                AUDSYNC(ahxPlay(0));
+                AUDSYNC(ahxPlay(ahx, 0));
             break;
 
             case 'n': // next sub-song
             {
-                if (ahx.song->Subsongs > 0)
+                if (ahx->song->Subsongs > 0)
                 {
-                    if (ahx.Subsong < ahx.song->Subsongs)
-                        AUDSYNC(ahxPlay(ahx.Subsong + 1));
+                    if (ahx->Subsong < ahx->song->Subsongs)
+                        AUDSYNC(ahxPlay(ahx, ahx->Subsong + 1));
                 }
             }
             break;
 
             case 'p': // previous sub-song
             {
-                if (ahx.song->Subsongs > 0)
+                if (ahx->song->Subsongs > 0)
                 {
-                    if (ahx.Subsong > 0)
-                        AUDSYNC(ahxPlay(ahx.Subsong - 1));
+                    if (ahx->Subsong > 0)
+                        AUDSYNC(ahxPlay(ahx, ahx->Subsong - 1));
                 }
             }
             break;
 
             case 'h': // toggle Amiga hard-pan
             {
-                if (ahx.audio.stereoSeparation == 100)
-                    paulaSetStereoSeparation(&ahx.audio, oldStereoSeparation);
+                if (ahx->audio.stereoSeparation == 100)
+                    paulaSetStereoSeparation(&ahx->audio, oldStereoSeparation);
                 else
-                    paulaSetStereoSeparation(&ahx.audio, 100);
+                    paulaSetStereoSeparation(&ahx->audio, 100);
             }
             break;
 
             case 0x20: // space (toggle pause)
-                paulaTogglePause(&ahx.audio);
+                paulaTogglePause(&ahx->audio);
             break;
 
             case 0x2B: // numpad + (next song position)
-                AUDSYNC(ahxNextPattern());
+                AUDSYNC(ahxNextPattern(ahx));
             break;
 
             case 0x2D: // numpad - (previous song position)
-                AUDSYNC(ahxPrevPattern());
+                AUDSYNC(ahxPrevPattern(ahx));
             break;
             
             default: break;
@@ -392,7 +399,7 @@ static int32_t renderToWav(void)
     strcpy(WAVRenderFilename, filename);
     strcat(WAVRenderFilename, ".wav");
 
-    ahx.isRecordingToWAV = true; // this is also set in wavRecordingThread(), but do it here to be sure...
+    ahx->isRecordingToWAV = true; // this is also set in wavRecordingThread(), but do it here to be sure...
     if (!createSingleThread(wavRecordingThread))
     {
         printf("Error: Couldn't create WAV rendering thread!\n");
@@ -405,10 +412,10 @@ static int32_t renderToWav(void)
 #ifndef _WIN32
     modifyTerminal();
 #endif
-    while (ahx.isRecordingToWAV)
+    while (ahx->isRecordingToWAV)
     {
         if ( _kbhit())
-            ahx.isRecordingToWAV = false;
+            ahx->isRecordingToWAV = false;
 
         Sleep(50);
     }

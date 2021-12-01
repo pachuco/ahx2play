@@ -57,8 +57,9 @@ void paulaInit(audio_t *audio, int32_t audioFrequency);
 void paulaSetMasterVolume(audio_t *audio, int32_t vol);
 void paulaSetStereoSeparation(audio_t *audio, int32_t percentage); // 0..100 (percentage)
 
+void paulaMixSamples(audio_t *audio, int32_t *mixL, int32_t *mixR, int32_t numSamples);
+
 void paulaTogglePause(audio_t *audio);
-void paulaOutputSamples(audio_t *audio, int16_t *stream, int32_t numSamples);
 void paulaStopAllDMAs(audio_t *audio);
 void paulaStartAllDMAs(audio_t *audio);
 void paulaSetPeriod(audio_t *audio, int32_t ch, uint16_t period);
