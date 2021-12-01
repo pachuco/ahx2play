@@ -24,7 +24,7 @@
 #define NORM_FACTOR 1.5 /* can clip from high-pass filter overshoot */
 #define STEREO_NORM_FACTOR 0.5 /* cumulative mid/side normalization factor (1/sqrt(2))*(1/sqrt(2)) */
 
-#define OVERSAMP_FACTOR 6
+#define OVERSAMP_FACTOR 1024
 
 static int8_t emptySample[MAX_SAMPLE_LENGTH*2] = {0};
 
@@ -167,7 +167,7 @@ void paulaStartAllDMAs(audio_t *audio)
     }
 }
 
-void paulaMixSamples(audio_t *audio, int32_t *mixL, int32_t *mixR, int32_t numSamples)
+static void paulaMixSamplesStatic(audio_t *audio, int32_t *mixL, int32_t *mixR, int32_t numSamples)
 {
     int32_t *mixBufSelect[AMIGA_VOICES] = { mixL, mixR, mixR, mixL };
     paulaVoice_t *v = audio->paula;
@@ -252,6 +252,14 @@ void paulaMixSamples(audio_t *audio, int32_t *mixL, int32_t *mixR, int32_t numSa
         CLAMP16(smp32);
         mixR[j] = smp32;
     }
+}
+
+//Optimization hack!
+//Without static keyword, above function is slower
+//At least in GCC... what is going on here?
+void paulaMixSamples(audio_t *audio, int32_t *mixL, int32_t *mixR, int32_t numSamples)
+{
+    paulaMixSamplesStatic(audio, mixL, mixR, numSamples);
 }
 
 void paulaTogglePause(audio_t *audio)
