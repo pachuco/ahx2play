@@ -451,7 +451,7 @@ static void ProcessStep(replayer_t *ahx, plyVoiceTemp_t *ch)
 
     if (cmd == 0xD) // Effect  > D <  -  Patternbreak
     {
-        ahx->PosJump = (ahx->PosJump & 0xFF00) | (ahx->PosNr + 1); // jump to next position
+        ahx->PosJump = ahx->PosNr + 1; // jump to next position (8bb: yes, it clears PosJump hi-byte)
 
         ahx->PosJumpNote = ((param >> 4) * 10) + (param & 0xF);
         if (ahx->PosJumpNote >= ahx->song->TrackLength)
